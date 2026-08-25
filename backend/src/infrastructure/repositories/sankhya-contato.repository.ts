@@ -139,7 +139,7 @@ export class SankhyaContatoRepository implements IContatoRepository {
              PAR.CEP,
              ENDP.NOMEEND AS LOGRADOURO,
              BAI.NOMEBAI AS BAIRRO,
-             CID.NOMECID AS CIDADE, CID.UF,
+              CID.NOMECID AS CIDADE, UFS.UF AS UF,
              TEL.DHCHAMADA, TEL.DHPROXCHAM, TEL.PENDENTE,
              TEL.SITUACAO, TEL.AD_TIPCHAMADA, TEL.AD_TIPO, TEL.AD_HISTORICO,
              TEL.AD_HISTCOBRA, TEL.COMENTARIOS, TEL.AD_MSG
@@ -147,8 +147,9 @@ export class SankhyaContatoRepository implements IContatoRepository {
       INNER JOIN TGFPAR PAR ON PAR.CODPARC = TEL.CODPARC
       LEFT JOIN TSIEND ENDP ON ENDP.CODEND = PAR.CODEND
       LEFT JOIN TSIBAI BAI ON BAI.CODBAI = PAR.CODBAI
-      LEFT JOIN TSICID CID ON CID.CODCID = PAR.CODCID
-      WHERE TRUNC(TEL.DHCHAMADA) = TRUNC(SYSDATE) ${filtroUsuario}
+       LEFT JOIN TSICID CID ON CID.CODCID = PAR.CODCID
+       LEFT JOIN TSIUFS UFS ON UFS.CODUF = CID.UF
+       WHERE TRUNC(TEL.DHCHAMADA) = TRUNC(SYSDATE) ${filtroUsuario}
       ORDER BY DECODE(TEL.PENDENTE,'S',0,'N',1), TEL.DHCHAMADA ASC
     `,
     );
@@ -161,10 +162,10 @@ export class SankhyaContatoRepository implements IContatoRepository {
       email: r.EMAIL || null,
       cnpjCpf: r.CGC_CPF || null,
       razaoSocial: r.RAZAOSOCIAL || null,
-      nomeFantasia: r.NOMEFANTASIA || null,
-      tipoPessoa: r.TIPO || null,
-      pessoFisJur: r.PESSOFISJUR || null,
-      inscricaoEstadual: r.INSCREST || null,
+      nomeFantasia: null,
+      tipoPessoa: r.TIPPESSOA || null,
+      pessoFisJur: r.TIPPESSOA || null,
+      inscricaoEstadual: r.IDENTINSCESTAD || null,
       logradouro: r.LOGRADOURO || null,
       numeroEnd: r.NUMEND || null,
       complemento: r.COMPLEMENTO || null,

@@ -53,6 +53,12 @@ frontend/.next/
 frontend/dist/
 frontend/build/
 
+# Uploads & Temporary script outputs
+backend/uploads/
+backend/scripts/*.png
+backend/scripts/*.bin
+backend/scripts/*.txt
+
 # Misc
 ~$*
 *.tmp

@@ -12,6 +12,25 @@ export function formatCurrency(value: number): string {
   }).format(value || 0)
 }
 
+export function formatCurrencyInput(value: string | number | null | undefined): string {
+  if (value === null || value === undefined || value === '') return '';
+  if (typeof value === 'number') {
+    if (isNaN(value)) return '';
+    return value.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  }
+  const digits = value.replace(/\D/g, '');
+  if (!digits) return '';
+  const num = parseInt(digits, 10) / 100;
+  return num.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+export function parseCurrencyInput(value: string | null | undefined): number | undefined {
+  if (!value) return undefined;
+  const cleaned = value.replace(/\./g, '').replace(',', '.').replace(/[^\d.]/g, '');
+  const num = parseFloat(cleaned);
+  return isNaN(num) ? undefined : num;
+}
+
 export function formatCurrencyCompact(value: number): string {
   if (value >= 1000000) {
     return `R$ ${(value / 1000000).toFixed(1)}M`

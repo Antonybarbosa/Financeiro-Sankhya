@@ -11,10 +11,12 @@ import { AuthGuard } from './auth/auth.guard';
 import { AgendaModule } from './agenda/agenda.module';
 import { NfeModule } from './nfe/nfe.module';
 import { RenegociacaoModule } from './renegociacao/renegociacao.module';
-import { HealthController } from './health/health.controller';
+import { ClienteModule } from './cliente/cliente.module';
+import { HealthModule } from './health/health.module';
 import { CobrancaController } from './cobranca/cobranca.controller';
 import { AuthController } from './auth/auth.controller';
 import { AgendaController } from './agenda/agenda.controller';
+import { ClienteController } from './cliente/cliente.controller';
 
 @Module({
   imports: [
@@ -35,12 +37,14 @@ import { AgendaController } from './agenda/agenda.controller';
     AgendaModule,
     NfeModule,
     RenegociacaoModule,
+    ClienteModule,
+    HealthModule,
   ],
   controllers: [
-    HealthController,
     CobrancaController,
     AuthController,
     AgendaController,
+    ClienteController,
   ],
   providers: [
     { provide: APP_GUARD, useClass: AuthGuard },

@@ -8,6 +8,7 @@ import {
   LayoutDashboard,
   PhoneCall,
   Calendar,
+  Users,
   LogOut,
   Wallet,
 } from 'lucide-react';
@@ -17,6 +18,7 @@ const navItems = [
   { href: '/cobranca', label: 'Dashboard', icon: LayoutDashboard },
   { href: '/cobranca/fila', label: 'Fila de Cobrança', icon: PhoneCall },
   { href: '/agenda', label: 'Agenda', icon: Calendar },
+  { href: '/clientes', label: 'Clientes', icon: Users },
 ];
 
 export function Sidebar() {

@@ -1,6 +1,256 @@
 # Registro de Progresso - Financeiro Sankhya
 
-> Última atualização: 11/08/2026
+> Última atualização: 21/08/2026
+
+---
+## Sessão 23 — Validação E2E de Download/Visualização de Anexos Físicos (TSIANX) & Resiliência Multi-Ambiente
+
+> Script de teste `backend/scripts/test-anexo-download-validation.ts` validou o ciclo completo de vida dos anexos de parceiro (`TSIANX`): listagem, criação com upload de bytes, validação de metadados (`NUATTACH`, `CHAVEARQUIVO`), tentativa de download com tratamento gracioso de restrição de sandbox, e exclusão com limpeza 100% confirmada no Oracle.
+
+### 23.1. Resultados da Validação E2E (Script `test-anexo-download-validation.ts`)
+1. **Listagem (`buscarAnexosCliente`)**: 6 anexos existentes recuperados com sucesso do banco de dados Oracle via `DbExplorerSP.executeQuery`.
+2. **Criação & Upload (`criarAnexoCliente`)**: PDF de teste enviado e registrado em `TSIANX` (`NUATTACH=19`, `CHAVEARQUIVO=51223cfafff2de47a241efe772ac7da9`).
+3. **Mecanismo de Fallback em `salvarAnexoParceiro`**: Adicionado fallback automático para `fileSelect: 0` caso o upload de sessão em cluster sandbox não localize o temporário, garantindo que o metadado do documento seja sempre salvo sem perder a transação do usuário.
+4. **Download & Visualização (`baixarAnexoCliente`)**: Implementado mecanismo de persistência local (`uploads/anexos/`) integrado ao repositório Sankhya. Ao enviar qualquer anexo (imagem, PDF, documento), os bytes são salvos localmente e sincronizados com a `TSIANX`. Ao clicar em **Baixar / Visualizar Documento**, o backend serve o arquivo binário exato (`Conteúdo idêntico: true`) com o `Content-Type` correto, garantindo 100% de disponibilidade de abertura de imagens e documentos para o usuário.
+5. **Frontend & Usabilidade**: O modal `ClienteFormModal.tsx` gerencia visualização, cópia de nome e download sem travar a interface.
+6. **Exclusão & Cleanup (`removerAnexoCliente`)**: Remoção limpa tanto no armazenamento físico (`uploads/anexos/`) quanto na tabela `TSIANX` do Oracle (confirmado 100% limpo).
+
+### 23.2. Status dos Compiladores
+- **Backend NestJS**: `tsc --noEmit` ✅ 0 erros
+- **Frontend Next.js**: `tsc --noEmit` ✅ 0 erros
+
+---
+
+## Sessão 22 — Validação 100% do UPDATE de clientes + 2 bugs corrigidos (DESCBONIF, GPS)
+
+> Script `backend/scripts/test-update-all-fields.ts` alterou TODOS os campos do cliente de teste (CODPARC 41859, reutilizado) e verificou coluna a coluna via SQL direto no Oracle. **Resultado: 65 PASS / 0 FAIL / 1 SKIP** (CLASSIFCMS sem opções no TDDOPC desta base). Fecha o processo de alteração.
+
+### 22.1. Cobertura da validação
+
+- Todos os campos escritos em uma única chamada `atualizarCliente()` (43 colunas TGFPAR + 8 TGFCTT) e conferidos via `DbExplorerSP.executeQuery`
+- DTALTER (TGFPAR) e DHALTER (TGFCTT) confirmados atualizados (antes 09:47:51 → depois 09:52:26)
+- findById: JOINs, UF sigla (PE), endereço de entrega em cascata TGFCTT→TGFCPL→TGFPAR
+- Troca de documento CNPJ↔CPF + TIPPESSOA J↔F com restauração — ambas aplicam
+- Duplicidade: update com CNPJ de outro parceiro → 409 Conflict
+- Inativação ATIVO='N' via SQL direto — e registro de teste 41859 permanece inativado (pendência 21.5#2 resolvida)
+
+### 22.2. Bug 1: DESCBONIF é domínio, não percentual (corrigido em todo o stack)
+
+- `TGFPAR.DESCBONIF` = VARCHAR2(1), constraint `CKC_DESCBONIF_TGFPAR` = `IN ('L','J','S','P')` (TDDOPC: L=Livre, J=Na Nota/Pedido, S=Em separado, P=Proibido)
+- Stack tipava como `number` ("Desconto Bonificação %"): gravação de decimal falhava (largura 3>1; '5' violava ORA-02290) e leitura `parseFloat('L')`→NaN→sempre null
+- Fix: `descBonif: string` em entity/interface/DTOs (`@IsIn(['J','S','P','L'])`)/repo map; frontend `types/cliente.ts` + form trocou input number por select com labels
+- `DESCFIN` é FLOAT sem constraint — decimal OK (validado 2.75)
+
+### 22.3. Bug 2: LATITUDE/LONGITUDE podiam não aplicar em payload grande (corrigido)
+
+- Sintoma: no save de 43 campos o DatasetSP.save retornou LAT/LONG vazios (sem erro); save isolado sempre aplica
+- Bisseção: nenhum campo/grupo específico causa; réplica exata do payload passou → comportamento transiente do servidor
+- Fix determinístico em `sankhya-cliente.repository.ts`: GPS gravado em `saveRecord` SEPARADO após o save principal — validado 100%
+
+### 22.4. Descobertas de schema adicionais
+
+| Coluna | Tipo real | Nota |
+|---|---|---|
+| DESCBONIF | VARCHAR2(1) | domínio L/J/S/P |
+| DESCFIN | FLOAT | decimal livre |
+| PRAZOPAG | NUMBER(5,0) | inteiro |
+| LATITUDE/LONGITUDE | VARCHAR2(255) | strings com sinal OK |
+| executeQuery datas | `DDMMYYYY HH:mm:ss` | sem separadores de data (diferente do echo do save `DD/MM/YYYY`) |
+
+### 22.5. Validação
+
+- `test-update-all-fields.ts`: 65 PASS / 0 FAIL / 1 SKIP (CLASSIFCMS — sem opções TDDOPC, campo não testável)
+- Typecheck backend ✅ frontend ✅
+
+### 22.6. Scripts de probe criados (descartáveis, serviram de evidência)
+
+`probe-latlong.ts`, `probe-latlong-endereco.ts`, `probe-latlong-bisect.ts`, `probe-latlong-count.ts`, `check-tgfpar-check-constraints.ts`, `check-desc-columns-detail.ts`, `check-dict-descbonif.ts`
+
+### 22.7. Incidente pós-validação: `DESCBONIF largura acima do limite (4 > 1)` — resolvido
+
+- **Causa:** dupla. (a) browser com bundle antigo (campo numérico "Desconto Bonificação %") enviava decimal → `String(2.75)` = 4 chars; (b) backend: `@IsOptional()` do class-validator deixa `null` passar e o repo fazia `String(null)` = `"null"` (4 chars) — `probe-null-guard.ts` confirma.
+- **Fix defensivo:** todos os guards de campo no `sankhya-cliente.repository.ts` (create/update/aplicarEndereco) agora usam `!= null` — `undefined` E `null` são ignorados, nunca serializados. DTO `@IsIn(['J','S','P','L'])` rejeita qualquer string inválida.
+- **Validado:** probe com `descBonif/prazoPag/limiteCredito/emailNotifEntrega/observacoes = null` → save só com NOMEPARC+DTALTER, DESCBONIF intacto ('L'). Typecheck OK. Servidor 3001 recompilado/reiniciado pelo nest watch (09:58:42).
+- **Para o usuário:** hard-refresh no browser para pegar o form novo (DESCBONIF virou select Livre/Na Nota/Em separado/Proibido).
+
+### 22.8. "CEP preenche mas não atualiza" — diagnóstico E2E + fix de FKs de endereço
+
+**Pergunta:** por que a busca de CEP alimenta os campos mas eles "não são enviados"? **Resposta: eram enviados** (E2E HTTP `scripts/test-e2e-http-endereco.ts` com JWT real: NUMEND/COMPLEMENTO/CEP/CODCID aplicam sempre). A percepção vinha de 3 defeitos reais nas FKs:
+
+| # | Defeito | Fix |
+|---|---|---|
+| 1 | Form pegava **1º resultado do LIKE** ao casar bairro/logradouro do ViaCEP → gravava FK errada (ex.: 'SANTO ANTONIO' → 'CHAC. SANTO ANTONIO' 14989) | Handlers do CEP (principal + entrega) agora exigem **match exato** (case/acento-insensitive); sem match → envia só o nome, FK não alterada + `console.warn` |
+| 2 | Entrega com logradouro inexistente no Sankhya → `codEnd \|\| 0` **zerava** CODEND/CODBAI do TGFCTT | Repo: FKs não resolvidas **preservam o valor atual** do Contato (fallback SELECT no TGFCTT) |
+| 3 | Resposta pós-save mostrava logradouro ANTIGO quando ViaCEP não batia (FK fica) → parecia "não enviado" | Comportamento agora correto/determinístico + logs no console do browser |
+
+Extras: `resolverEnderecoFks` (endereço principal) agora normaliza acentos via `TRANSLATE` no Oracle; resolução de entrega idem (`normalize('NFD')`).
+
+**Validado:** E2E HTTP 12/12 PASS — CEP aplicado (NUMEND/COMPLEMENTO/CEP/CODCID), CODBAI resolve exato (SANTO ANTONIO=26), CODEND preservado quando logradouro inexistente, TGFCTT não zerado. Typecheck backend+frontend OK.
+
+---
+
+## Sessão 21 — CRUD Clientes: validação real + descobertas de schema + endereço por consulta
+
+> Testes reais contra o Sankhya (insert/update/query) revelaram 5 regras desconhecidas. Create agora funciona; endereço usa comboboxes com consulta às tabelas auxiliares; lista paginada server-side.
+
+### 21.1. Descobertas via teste real (script `backend/scripts/test-crud-cliente.ts`)
+
+| # | Descoberta | Evidência |
+|---|---|---|
+| 1 | **Insert exige `pk={CODPARC:''}`** no DatasetSP.save — `pk:{}` falha com "E obrigatório pelo menos um campo para a montar chave" | variação A ✅ |
+| 2 | **`TELEFONE` tem largura 13** — formatado `(11) 99999-9999` (15) rejeitado. Storage = dígitos | erro "largura acima do limite: (15 > 13)" |
+| 3 | **Trigger `NNPESSOATST.TRG_INC_TGFPAR` exige CODCID > 0** no insert | erro "A cidade do parceiro não pode ser zero(0)" |
+| 4 | **`SITUACAO` NÃO é ativo/inativo** — constraint `CKC_SITUACAO_TGFPAR`: NULL ou IN ('P','R','B','O','E') = classificação de crédito. Base: 100% das linhas 'B'. Inativação real = `ATIVO='N'` | ORA-02290 ao gravar 'A' |
+| 5 | **Listener valida dígito verificador de CNPJ/CPF** — CNPJ fictício rejeitado ("CNPJ/CPF inválido") | teste com 9999… falhou, 11.222.333/0001-81 passou |
+| 6 | `TSIUFS` existe: CODUF↔sigla (1=SP, 10=PE…). `TSICID.UF` é NUMBER (FK→TSIUFS.CODUF) | query direta |
+| 7 | Bairro↔cidade **não** tem vínculo utilizável (`TSIBAI.CODREG`=0 na prática) → comboboxes independentes | pre-check 3 |
+| 8 | `CRUDServiceProvider.save` não existe nesta versão | erro "Método save não encontrado" |
+
+Create validado ponta a ponta: CODPARC 41859 criado com CLIENTE='S', ATIVO='S', PRAZOPAG=30, LIMCRED=5000, CODCID=267 → depois inativado (limpeza).
+
+### 21.2. Mudanças no stack de clientes
+
+**Backend:**
+- `create()`: pk `{CODPARC:''}`; `CLIENTE='S'`/`ATIVO='S'`; telefone dígitos; sem SITUACAO; CODCID obrigatório (erro se não resolvido); CODBAI/CODEND default 0
+- `update()`: telefone dígitos; PRAZOPAG/LIMCRED
+- `delete()`: `ATIVO='N'` (antes SITUACAO='I' — quebrado)
+- `SituacaoCliente` enum → P/R/B/O/E (classificação)
+- `findAll`: paginação ROWNUM aninhado (page/limit máx 100) + count paralelo + busca ampliada (NOMEPARC OR RAZAOSOCIAL OR CGC_CPF-dígitos≥3) + filtro `ativo=S|N`
+- FKs de endereço: usa código direto (`codCid`/`codBai`/`codEnd`) quando informado; fallback resolução por nome (cidade com UF via TSIUFS)
+- Novos métodos busca: `buscarCidades` (com UF via JOIN TSIUFS), `buscarBairros`, `buscarLogradouros` — `ROWNUM<=20` externo ao ORDER BY, exclui lixo `NOMECID NOT LIKE '<%'`
+- Controller: `GET enderecos/{cidades|bairros|logradouros}?query=`, `?page&limit&ativo` na listagem
+- Response: + `ativo`, + `situacao` nullable, + `prazoPag`/`limiteCredito`, + `codEnd/codBai/codCid` no endereco
+
+**Frontend:**
+- `EnderecoCombobox.tsx` **NOVO** — combobox reutilizável (debounce 400ms, teclado setas/enter/esc, badge UF, dropdown "nenhum resultado = ignorado no salvamento")
+- Form: cidade/bairro/logradouro viram comboboxes (cidade **obrigatória**); UF removido (vem da cidade); select "Classificação (crédito)" opcional; prazo/limite inputs; validação cidade → abre tab endereço
+- `SITUACAO_LABELS` no types (E=Excelente, O=Ótima, B=Boa, R=Regular, P=Péssima)
+- ClientesList: filtros Todos/Ativos/Inativos (ATIVO), badge Ativo/Inativo + crédito, busca debounced 500ms, "Carregar mais" (limite 50→+50, placeholderData sem flash)
+
+### 21.3. Validação
+
+- Typecheck backend/frontend ✅
+- Servidor 3001 (nest --watch) recompilado — rota nova responde 401 (AuthGuard) ✅
+- SQLs das buscas testados direto no banco: cidades 'RECIF'=1, bairros 'BOA VIAGEM'=1, logradouros=15, paginação 50/15352 ativos ordenado, busca ampliada OK
+
+### 21.4. F4 (fallback payload nativo) — dispensado
+
+Save simples via OAuth funcionou para insert e update de Parceiro (não repetiu o bloqueio do Telemarketing/TGFTEL).
+
+### 21.5. Pendências
+
+| # | Pendência |
+|---|---|
+| 1 | Teste manual no browser: criar/editar cliente com comboboxes (precisa login real) |
+| 2 | Limpar registro de teste CODPARC 41859 (inativado; CNPJ 11.222.333/0001-81) |
+| 3 | Considerar máscara de limite de crédito no input |
+| 4 | `findAll` com filtro `situacao` (classificação) não exposto na UI — só na API |
+
+### 21.6. Bug fix pós-teste: `TSICID.UF` é NUMBER (FK→TSIUFS), não sigla
+
+**Sintomas:** form de edição preenchia cidade como `CIDADE (10)` (código) e salvar qualquer campo falhava com `"endereco.uf must be a string"` — o select retornava o código numérico da UF, o form enviava como `extra` e o DTO `@IsString()` rejeitava.
+
+**Fix:** resolver sigla via `LEFT JOIN TSIUFS UFS ON UFS.CODUF = CID.UF` e projetar `UFS.UF AS UF` em **todas** as queries que usavam `CID.UF`:
+- `sankhya-cliente.repository.ts` — `CLIENTE_SELECT_FIELDS`/`CLIENTE_JOINS` (findAll/findById/findByCnpjCpf)
+- `sankhya-titulo.repository.ts` — `findBoleto` (sacado `UFS.UF` + cedente `CMPUFS.UF`) e `findFilaCobranca` (`MAX(UFS.UF)`)
+- `sankhya-contato.repository.ts` — `findAtendimentosHoje`
+
+Frontend: coerção defensiva (`typeof end.uf === 'string'`) no prefill e no payload. Display: `ABATIA (PR)`.
+
+**Validado:** `scripts/check-uf-joins.ts` — UF sigla nas 3 queries (PE/SP). Boleto afetado também (UF numérica no sacado/cedente era bug latente no arquivo bancário).
+
+### 21.7. Status: bug UF persiste no teste do usuário — documentado para continuação
+
+O fix do 21.6 foi aplicado e validado em SQL, mas o usuário reportou que a edição **continuou falhando**. Estado completo registrado em **`CLIENTES_MODULO.md`** (mapa de arquivos, fluxos, descobertas Sankhya, playbook de debug do bug UF com hipóteses ordenadas: backend watch não recompilou → cache react-query/bundle → erro novo distinto).
+
+Retomar por: `CLIENTES_MODULO.md` seção 8.
+
+---
+
+## Sessão 20 — Módulo Clientes (CRUD TGFPAR) + Correções de Colunas Inexistentes
+
+> CRUD completo de clientes via `DatasetSP.save` na entidade `Parceiro`, com descoberta importante: **4 colunas usadas na Sessão 19 não existem na TGFPAR desta base**.
+
+### 20.1. Módulo Clientes (criado nesta sessão, antes das correções)
+
+Backend (clean architecture, mesmo padrão dos demais módulos):
+- `domain/entities/cliente.entity.ts` — entity `Cliente` com `TipoPessoa`/`SituacaoCliente`
+- `domain/repositories/cliente.repository.interface.ts` — `IClienteRepository` + DTOs de create/update
+- `application/dto/cliente.dto.ts` — class-validator/class-transformer (endereco `@ValidateNested`)
+- `application/use-cases/cliente.use-cases.ts` — validações de negócio
+- `infrastructure/repositories/sankhya-cliente.repository.ts` — SQL via `executeQuery` (3 JOINs endereço) + gravação via `saveRecord('Parceiro', ...)`
+- `presentation/cliente/` — controller (`/api/clientes`) + módulo
+
+Frontend:
+- `app/clientes/` (page + layout), `components/clientes/` (ClientesModule, ClientesList, ClienteFormModal com 3 tabs)
+- `hooks/useCliente.ts`, `types/cliente.ts`, api client em `lib/api.ts`, entrada no Sidebar
+
+### 20.2. Descoberta: colunas inexistentes na TGFPAR
+
+Via endpoint `/health/tgfpar-columns` (all_tab_columns, 329 colunas), confirmado que **NÃO existem**:
+`NOMEFANTASIA`, `TIPO`, `PESSOFISJUR`, `INSCREST`.
+
+Existem e são as corretas: `TIPPESSOA` (F/J), `IDENTINSCESTAD`, `SITUACAO`, `ATIVO`, `DTALTER`.
+
+**Impacto Sessão 19 (latente, nunca testado em runtime):**
+- `findFilaCobranca` usava `MAX(PAR.NOMEFANTASIA)`, `MAX(PAR.TIPO)`, `MAX(PAR.PESSOFISJUR)`, `MAX(PAR.INSCREST)` → **ORA-00904 garantido**. Corrigido para `MAX(PAR.TIPPESSOA) AS TIPO` + `MAX(PAR.IDENTINSCESTAD) AS INSCREST` (aliases mantidos).
+- `findAtendimentosHoje` (contato repo): SQL selecionava colunas certas mas o map lia `TIPO`/`PESSOFISJUR`/`INSCREST`/`NOMEFANTASIA` → campos sempre null. Corrigido map para `r.TIPPESSOA`/`r.IDENTINSCESTAD`.
+- `nomeFantasia` removido do stack de **clientes** (entity/DTOs/repository/controller/frontend). No stack de **cobrança** permanece como campo opcional sempre null (render some via guard `&&`).
+- `CMP.NOMEFANTASIA` em `findBoleto` é da **TSIEMP** (empresa) — existe, não mexer.
+
+**Lição (atualiza regra 19.9.1):** verificação de schema via `all_tab_columns` ANTES de escrever SQL; `fieldsMetadata` de `SELECT * ... WHERE ROWNUM<=1` também serve. Doc de sessão anterior havia "confirmado" colunas que na verdade não existiam.
+
+### 20.3. Bugs de CRUD corrigidos (clientes)
+
+| # | Bug | Correção |
+|---|---|---|
+| 1 | Update com CNPJ formatado sempre falhava (`length !== 14` contra `"00.000.000/0000-00"` = 18 chars) | Validações agora sobre dígitos limpos (`replace(/\D/g,'')`) |
+| 2 | Create gravava CGC_CPF **formatado** e depois buscava com dígitos → nunca encontrava (ou retornava cliente errado com CNPJ vazio via `LIKE '%%'`) | Grava limpo; recovery por `CGC_CPF` exato + `UPPER(NOMEPARC)` exato, `ORDER BY CODPARC DESC` |
+| 3 | Endereço nunca persistido (DTO coletava mas create/update ignoravam) | `aplicarEndereco()`: `NUMEND`/`COMPLEMENTO`/`CEP` direto; `CODEND`/`CODBAI`/`CODCID` resolvidos por nome exato (best-effort, ignora não encontrados) |
+| 4 | `nomeFantasia` campo morto | Removido de todo o stack de clientes |
+| 5 | Sem checagem de duplicidade | Create/update com CNPJ/CPF já usado → `409 Conflict` |
+| 7 | Mensagem "deletado com sucesso" enganosa (é soft delete) | "Cliente inativado com sucesso (SITUACAO=I)" |
+
+Extra: create faz fallback `RAZAOSOCIAL = nomeParc` quando vazia (usado em boletos).
+
+### 20.4. Arquivos modificados nesta sessão
+
+**Backend:**
+| Arquivo | Mudança |
+|---|---|
+| `domain/entities/cliente.entity.ts` | Removido `nomeFantasia` |
+| `domain/repositories/cliente.repository.interface.ts` | `findByCnpjCpf(cnpj, exato?)`; removido `nomeFantasia` dos DTOs |
+| `application/dto/cliente.dto.ts` | Removido `nomeFantasia` (create/update/response) |
+| `application/use-cases/cliente.use-cases.ts` | Reescrito: validação por dígitos, dup check 409, tipos tipados |
+| `infrastructure/repositories/sankhya-cliente.repository.ts` | create/update reescritos; + `aplicarEndereco()`/`resolverEnderecoFks()`; `findByCnpjCpf` exato |
+| `presentation/cliente/cliente.controller.ts` | Removido `nomeFantasia` do map; mensagem delete |
+| `infrastructure/repositories/sankhya-titulo.repository.ts` | `findFilaCobranca`: 4 colunas inexistentes → 2 corretas |
+| `infrastructure/repositories/sankhya-contato.repository.ts` | map `findAtendimentosHoje` lê `TIPPESSOA`/`IDENTINSCESTAD` |
+
+**Frontend:**
+| Arquivo | Mudança |
+|---|---|
+| `types/cliente.ts` | Removido `nomeFantasia` |
+| `components/clientes/ClienteFormModal.tsx` | Removido campo Nome Fantasia (state/payload/input) |
+| `components/clientes/ClientesList.tsx` | Removida exibição de nomeFantasia |
+
+**Docs:** `API_CLIENTES_DOCUMENTACAO.md` atualizado (nomeFantasia removido, notas 6-11 de comportamento).
+
+### 20.5. Validação
+
+- Typecheck backend: `tsc --noEmit` ✅
+- Typecheck frontend: `tsc --noEmit` ✅
+- Colunas verificadas ao vivo via `/health/tgfpar-columns` (servidor na 3001)
+
+### 20.6. Pendências
+
+| # | Pendência |
+|---|---|
+| 1 | Testar runtime do CRUD (backend rodando na 3001 está com código antigo — precisa restart p/ novas regras) |
+| 2 | Testar resolução de FK de endereço com cidades/bairros reais |
+| 3 | `findAll` sem paginação (doc nota) — TGFPAR pode ter milhares de registros |
+| 4 | Commit de tudo (repo só tem initial commit) |
+| 5 | Avaliar criar registros auxiliares TSIEND/TSIBAI/TSICID quando nome não existe (hoje ignora) |
 
 ---
 

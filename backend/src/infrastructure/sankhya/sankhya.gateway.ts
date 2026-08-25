@@ -12,6 +12,8 @@ interface SankhyaConfig {
 export class SankhyaGateway implements OnModuleDestroy {
   private token: string | null = null;
   private tokenExpiry: number = 0;
+  /** jsessionId embutido no claim do JWT OAuth — usado como Cookie para afinidade de sessão (upload de anexos). */
+  private jsessionId: string | null = null;
   private config: SankhyaConfig;
 
   constructor(private configService: ConfigService) {
@@ -45,8 +47,27 @@ export class SankhyaGateway implements OnModuleDestroy {
     const data = await response.json();
     this.token = data.access_token;
     this.tokenExpiry = Date.now() + (data.expires_in - 300) * 1000;
-    
+    this.jsessionId = this.extrairJsessionId(this.token);
+
     return this.token;
+  }
+
+  private extrairJsessionId(jwt: string): string | null {
+    try {
+      const payload = JSON.parse(Buffer.from(jwt.split('.')[1].replace(/-/g, '+').replace(/_/g, '/'), 'base64').toString('utf-8'));
+      return payload.jsessionId || null;
+    } catch {
+      return null;
+    }
+  }
+
+  /** Cookie de afinidade de sessão — garante que upload e salvamento do anexo caiam no mesmo pod do cluster. */
+  getAuthCookie(): string | null {
+    return this.jsessionId ? `JSESSIONID=${this.jsessionId}` : null;
+  }
+
+  getGatewayUrl(): string {
+    return this.config.url;
   }
 
   async getToken(): Promise<string> {
@@ -62,7 +83,7 @@ export class SankhyaGateway implements OnModuleDestroy {
    * (debug-contato-save.ts) confirmou que esse usuário consegue gravar PENDENTE
    * em TGFTEL sem precisar de sessão de usuário (mgeSession).
    */
-  async serviceCall(serviceName: string, body: any, module: 'mge' | 'mgecom' | 'mgefin' = 'mge'): Promise<any> {
+  async serviceCall(serviceName: string, body: any, module: 'mge' | 'mgecom' | 'mgefin' | 'mgebase' = 'mge', extraHeaders?: Record<string, string>): Promise<any> {
     const token = await this.getToken();
     const endpoint = `${this.config.url}/gateway/v1/${module}/service.sbr`;
 
@@ -76,6 +97,7 @@ export class SankhyaGateway implements OnModuleDestroy {
       headers: {
         'Authorization': `Bearer ${token}`,
         'Content-Type': 'application/json',
+        ...(extraHeaders || {}),
       },
       body: JSON.stringify(body),
     });
@@ -152,7 +174,58 @@ export class SankhyaGateway implements OnModuleDestroy {
       }
     };
 
-    return await this.serviceCall('DatasetSP.save', requestBody);
+    const result = await this.serviceCall('DatasetSP.save', requestBody);
+    console.log(`[SankhyaGateway] DatasetSP.save result for ${entityName}:`, JSON.stringify(result?.responseBody || result).substring(0, 500));
+    return result;
+  }
+
+  async saveChildRecord(
+    parentEntityName: string,
+    parentPk: any,
+    childEntityName: string,
+    childPk: any,
+    fields: string[],
+    values: string[],
+  ): Promise<any> {
+    const parentPkKeys = Object.keys(parentPk);
+    const requestBody = {
+      serviceName: 'DatasetSP.save',
+      requestBody: {
+        entityName: parentEntityName,
+        standAlone: false,
+        fields: parentPkKeys,
+        records: [
+          {
+            pk: parentPk,
+            values: parentPkKeys.reduce((acc, k, idx) => {
+              acc[idx.toString()] = String(parentPk[k]);
+              return acc;
+            }, {} as any),
+            entities: {
+              entity: [
+                {
+                  entityName: childEntityName,
+                  fields: fields,
+                  records: [
+                    {
+                      pk: childPk,
+                      values: fields.reduce((acc, field, index) => {
+                        acc[index.toString()] = values[index];
+                        return acc;
+                      }, {} as any),
+                    },
+                  ],
+                },
+              ],
+            },
+          },
+        ],
+      },
+    };
+
+    const result = await this.serviceCall('DatasetSP.save', requestBody);
+    console.log(`[SankhyaGateway] DatasetSP.save child result for ${childEntityName}:`, JSON.stringify(result?.responseBody || result).substring(0, 500));
+    return result;
   }
 
   // Campos da tela nativa Relacionamento.xhtml5 (Telemarketing) — capturados via
@@ -200,6 +273,72 @@ export class SankhyaGateway implements OnModuleDestroy {
     };
 
     return await this.serviceCall('DatasetSP.save', requestBody);
+  }
+
+  /**
+   * Envia os bytes de um arquivo para a área de sessão do Sankhya
+   * (sessionUpload.mge, multipart). Depois disso, `AnexoSistemaSP.salvar`
+   * com fileSelect=1 vincula o arquivo enviado a um registro (TSIANX).
+   * Fluxo documentado em developer.sankhya.com.br ("Anexar Arquivos").
+   */
+  async uploadSessionFile(sessionKey: string, fileName: string, content: Buffer, contentType: string): Promise<void> {
+    const token = await this.getToken();
+    const url = `${this.config.url}/gateway/v1/mge/sessionUpload.mge?sessionkey=${encodeURIComponent(sessionKey)}&fitem=S&salvar=S&useCache=N`;
+
+    const formData = new FormData();
+    formData.append('arquivo', new Blob([content as unknown as BlobPart], { type: 'application/octet-stream' }), fileName);
+
+    // Cookie de afinidade: sem ele o upload pode cair num pod diferente do
+    // serviço que vincula o anexo — o arquivo "some" da sessão e o
+    // AnexoSistemaSP.salvar falha com "Arquivo não encontrado" (cluster sandbox).
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        Accept: 'text/html',
+      },
+      body: formData,
+    });
+
+    if (!response.ok) {
+      throw new Error(`Sankhya sessionUpload failed: ${response.statusText}`);
+    }
+
+    const html = await response.text();
+    // Página de sucesso contém window.close() sem toEval; erros aparecem no corpo.
+    if (/Erro|erro|exce/i.test(html) && !html.includes('window.close()')) {
+      throw new Error(`Sankhya sessionUpload rejeitou o arquivo: ${html.replace(/\s+/g, ' ').slice(0, 200)}`);
+    }
+  }
+
+  /**
+   * Baixa bytes de arquivo via visualizadorArquivos.mge.
+   * Retorna null quando o servidor responde "arquivo não existe" (HTML) —
+   * acontece quando o repositório físico do ambiente não é acessível
+   * pelo gateway (comportamento observado no sandbox).
+   */
+  async downloadArquivo(chaveArquivo: string): Promise<{ buffer: Buffer; contentType: string } | null> {
+    const token = await this.getToken();
+    const url = `${this.config.url}/gateway/v1/mge/visualizadorArquivos.mge?download=S&chaveArquivo=${encodeURIComponent(chaveArquivo)}`;
+
+    const response = await fetch(url, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+
+    if (!response.ok) {
+      throw new Error(`Sankhya downloadArquivo failed: ${response.statusText}`);
+    }
+
+    const buffer = Buffer.from(await response.arrayBuffer());
+    const contentType = response.headers.get('content-type') || 'application/octet-stream';
+
+    // Resposta de erro do visualizador vem como HTML (ex.: "O arquivo solicitado não existe no servidor.")
+    const looksHtml = contentType.includes('text/html') || buffer.subarray(0, 6).toString('ascii').startsWith('<html');
+    if (looksHtml) {
+      return null;
+    }
+
+    return { buffer, contentType };
   }
 
   async executeQuery(sql: string): Promise<any[]> {

@@ -1,0 +1,54 @@
+import { ConfigService } from '@nestjs/config';
+import { SankhyaGateway } from '../src/infrastructure/sankhya/sankhya.gateway';
+import * as dotenv from 'dotenv';
+import * as path from 'path';
+
+dotenv.config({ path: path.join(__dirname, '../.env') });
+
+async function testCoalesceQuery6614() {
+  const gateway = new SankhyaGateway(new ConfigService());
+
+  console.log('=== Testando consulta COALESCE (TGFCTT + TGFCPL) para o cliente #6614 ===\n');
+
+  const sql = `
+    SELECT
+        PAR.CODPARC,
+        PAR.NOMEPARC,
+        COALESCE(CTT.CODEND, CPL.CODENDENTREGA) AS CODEND_ENTREGA,
+        ENDENT.NOMEEND AS LOGRADOURO_ENTREGA,
+        COALESCE(CTT.NUMEND, CPL.NUMENTREGA) AS NUMEND_ENTREGA,
+        COALESCE(CTT.COMPLEMENTO, CPL.COMPLENTREGA) AS COMPLEMENTO_ENTREGA,
+        COALESCE(CTT.CODBAI, CPL.CODBAIENTREGA) AS CODBAI_ENTREGA,
+        BAIENT.NOMEBAI AS BAIRRO_ENTREGA,
+        COALESCE(CTT.CODCID, CPL.CODCIDENTREGA) AS CODCID_ENTREGA,
+        CIDENT.NOMECID AS CIDADE_ENTREGA,
+        UFSENT.UF AS UF_ENTREGA,
+        COALESCE(CTT.CEP, CPL.CEPENTREGA) AS CEP_ENTREGA,
+        CTT.NOMECONTATO AS CONTATO_ENTREGA
+    FROM TGFPAR PAR
+    LEFT JOIN (
+      SELECT CTT.CODPARC, CTT.CODEND, CTT.NUMEND, CTT.COMPLEMENTO, CTT.CODBAI, CTT.CODCID, CTT.CEP, CTT.NOMECONTATO
+      FROM (
+        SELECT CTT.CODPARC, CTT.CODEND, CTT.NUMEND, CTT.COMPLEMENTO, CTT.CODBAI, CTT.CODCID, CTT.CEP, CTT.NOMECONTATO, ROW_NUMBER() OVER (PARTITION BY CTT.CODPARC ORDER BY CTT.CODCONTATO ASC) AS RN
+        FROM TGFCTT CTT
+        WHERE CTT.CODEND IS NOT NULL AND CTT.CODEND > 0
+      ) WHERE RN = 1
+    ) CTT ON CTT.CODPARC = PAR.CODPARC
+    LEFT JOIN TGFCPL CPL ON CPL.CODPARC = PAR.CODPARC
+    LEFT JOIN TSIEND ENDENT ON ENDENT.CODEND = COALESCE(CTT.CODEND, CPL.CODENDENTREGA)
+    LEFT JOIN TSIBAI BAIENT ON BAIENT.CODBAI = COALESCE(CTT.CODBAI, CPL.CODBAIENTREGA)
+    LEFT JOIN TSICID CIDENT ON CIDENT.CODCID = COALESCE(CTT.CODCID, CPL.CODCIDENTREGA)
+    LEFT JOIN TSIUFS UFSENT ON UFSENT.CODUF = CIDENT.UF
+    WHERE PAR.CODPARC = 6614
+  `;
+
+  try {
+    const list = await gateway.executeQuery(sql);
+    console.log('Resultado para 6614:');
+    console.table(list);
+  } catch (err: any) {
+    console.error('Erro:', err?.message || err);
+  }
+}
+
+testCoalesceQuery6614().catch(console.error);
