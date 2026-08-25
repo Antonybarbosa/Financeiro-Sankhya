@@ -5,9 +5,39 @@ import { useAgendaHoje } from '@/hooks/useAgenda';
 import { Agendamento } from '@/types/agenda';
 import { formatCurrency, formatDate } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
+import { Skeleton } from '@/components/ui/skeleton';
 import { Loader2, Calendar, ArrowDownCircle, ArrowUpCircle, CheckCircle2, Clock, ChevronLeft, ChevronRight } from 'lucide-react';
 
 const PAGE_SIZE = 50;
+
+function AgendaSkeleton() {
+  return (
+    <div className="space-y-4 animate-in fade-in duration-300">
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        {[1, 2, 3, 4].map((i) => (
+          <div key={i} className="rounded-xl border border-gray-200 bg-white p-4 space-y-2">
+            <Skeleton className="h-3.5 w-24" />
+            <Skeleton className="h-7 w-32" />
+            <Skeleton className="h-3 w-28" />
+          </div>
+        ))}
+      </div>
+      <div className="overflow-hidden rounded-xl border border-gray-200 bg-white p-4 space-y-3">
+        {[1, 2, 3, 4, 5, 6].map((row) => (
+          <div key={row} className="flex items-center justify-between gap-4 py-2.5 border-b border-gray-100 last:border-0">
+            <Skeleton className="h-5 w-20 rounded-full shrink-0" />
+            <Skeleton className="h-4 w-48 flex-1" />
+            <Skeleton className="h-4 w-20" />
+            <Skeleton className="h-4 w-24" />
+            <Skeleton className="h-4 w-32" />
+            <Skeleton className="h-5 w-20 rounded-md" />
+            <Skeleton className="h-4 w-24" />
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
 
 export function AgendaList() {
   const [page, setPage] = useState(1);
@@ -17,12 +47,7 @@ export function AgendaList() {
   });
 
   if (isLoading) {
-    return (
-      <div className="flex items-center justify-center py-12">
-        <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
-        <span className="ml-2 text-gray-600">Carregando agenda...</span>
-      </div>
-    );
+    return <AgendaSkeleton />;
   }
 
   if (isError) {
@@ -66,26 +91,26 @@ export function AgendaList() {
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
+        <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-xs">
           <p className="text-xs font-medium text-gray-500">Total no período</p>
           <p className="mt-1 text-2xl font-bold text-gray-900">{totalRegistros}</p>
           <p className="text-xs text-gray-400">{baixados.length} já baixados nesta página</p>
         </div>
-        <div className="rounded-xl border border-green-200 bg-green-50 p-4 shadow-sm">
+        <div className="rounded-xl border border-green-200 bg-green-50 p-4 shadow-xs">
           <div className="flex items-center gap-2">
             <ArrowDownCircle className="h-5 w-5 text-green-600" />
             <p className="text-xs font-medium text-green-700">A Receber</p>
           </div>
           <p className="mt-1 text-2xl font-bold text-green-700">{formatCurrency(totalReceber)}</p>
         </div>
-        <div className="rounded-xl border border-red-200 bg-red-50 p-4 shadow-sm">
+        <div className="rounded-xl border border-red-200 bg-red-50 p-4 shadow-xs">
           <div className="flex items-center gap-2">
             <ArrowUpCircle className="h-5 w-5 text-red-600" />
             <p className="text-xs font-medium text-red-700">A Pagar</p>
           </div>
           <p className="mt-1 text-2xl font-bold text-red-700">{formatCurrency(totalPagar)}</p>
         </div>
-        <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
+        <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-xs">
           <div className="flex items-center gap-2">
             <CheckCircle2 className="h-5 w-5 text-gray-400" />
             <p className="text-xs font-medium text-gray-500">Vencendo nesta página</p>
@@ -95,7 +120,7 @@ export function AgendaList() {
         </div>
       </div>
 
-      <div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
+      <div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-xs">
         <div className="relative overflow-x-auto">
           {isFetching && (
             <div className="absolute right-3 top-3 z-10 flex items-center gap-1 rounded-md bg-blue-50 px-2 py-1 text-xs text-blue-600">
@@ -202,7 +227,7 @@ export function AgendaList() {
               type="button"
               onClick={() => setPage((p) => Math.max(1, p - 1))}
               disabled={currentPage <= 1 || isFetching}
-              className="inline-flex items-center gap-1 rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+              className="inline-flex items-center gap-1 rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 shadow-xs hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
             >
               <ChevronLeft className="h-4 w-4" />
               Anterior
@@ -215,7 +240,7 @@ export function AgendaList() {
               type="button"
               onClick={() => setPage((p) => p + 1)}
               disabled={currentPage >= totalPages || isFetching}
-              className="inline-flex items-center gap-1 rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+              className="inline-flex items-center gap-1 rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 shadow-xs hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
             >
               Próximo
               <ChevronRight className="h-4 w-4" />

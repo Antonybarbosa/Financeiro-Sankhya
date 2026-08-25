@@ -49,7 +49,7 @@ export function EnderecoCombobox({
     }
     setCarregando(true);
     fetcher(debounced)
-      .then(res => {
+      .then((res) => {
         if (!cancelado) setOpcoes(res);
       })
       .catch(() => {
@@ -89,10 +89,10 @@ export function EnderecoCombobox({
 
     if (e.key === 'ArrowDown') {
       e.preventDefault();
-      setDestacado(d => Math.min(d + 1, opcoes.length - 1));
+      setDestacado((d) => Math.min(d + 1, opcoes.length - 1));
     } else if (e.key === 'ArrowUp') {
       e.preventDefault();
-      setDestacado(d => Math.max(d - 1, 0));
+      setDestacado((d) => Math.max(d - 1, 0));
     } else if (e.key === 'Enter') {
       if (destacado >= 0 && opcoes[destacado]) {
         e.preventDefault();
@@ -105,23 +105,23 @@ export function EnderecoCombobox({
 
   return (
     <div ref={containerRef} className="relative">
-      <label className="block text-xs font-semibold text-gray-700 mb-1 flex items-center justify-between">
+      <label className="block text-xs font-bold text-gray-800 mb-1 flex items-center justify-between">
         <span>
           {label} {obrigatorio && <span className="text-red-500">*</span>}
         </span>
         {tooltip && (
-          <span title={tooltip} className="cursor-help text-gray-400 hover:text-blue-600 transition-colors">
+          <span title={tooltip} className="cursor-help text-gray-400 hover:text-indigo-600 transition-colors">
             <Info className="h-3.5 w-3.5 inline" />
           </span>
         )}
       </label>
       <div className="relative">
-        {icon && <MapPin className="absolute left-3 top-2.5 h-4 w-4 text-gray-400 z-10" />}
+        {icon && <MapPin className="absolute left-3 top-2.5 h-4 w-4 text-indigo-600 z-10" />}
         <input
           type="text"
           placeholder={placeholder}
           value={value}
-          onChange={e => {
+          onChange={(e) => {
             onTextoChange(e.target.value);
             onSelecionar(null);
             setAberto(true);
@@ -130,10 +130,12 @@ export function EnderecoCombobox({
             if (value.trim().length >= 2) setAberto(true);
           }}
           onKeyDown={handleKeyDown}
-          className={`w-full rounded-lg border px-3 ${icon ? 'pl-9' : ''} ${obrigatorio ? 'pr-8' : 'pr-3'} py-2 text-xs font-medium text-gray-900 placeholder-gray-400 focus:border-blue-500 focus:outline-none`}
+          className={`w-full rounded-lg border border-gray-300 bg-white px-3 ${icon ? 'pl-9' : ''} ${
+            obrigatorio ? 'pr-8' : 'pr-3'
+          } py-2 text-xs font-bold text-gray-900 placeholder-gray-400 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 focus:outline-hidden transition-colors shadow-xs`}
         />
         {carregando && (
-          <Loader2 className="absolute right-3 top-2.5 h-4 w-4 animate-spin text-gray-400" />
+          <Loader2 className="absolute right-3 top-2.5 h-4 w-4 animate-spin text-indigo-600" />
         )}
         {!carregando && obrigatorio && (
           <ChevronDown className="absolute right-3 top-2.5 h-4 w-4 text-gray-400 pointer-events-none" />
@@ -143,16 +145,16 @@ export function EnderecoCombobox({
       {aberto && (
         <div className="absolute z-30 mt-1 w-full max-h-56 overflow-y-auto rounded-lg border border-gray-200 bg-white shadow-lg">
           {carregando && (
-            <div className="flex items-center gap-2 px-3 py-2.5 text-xs text-gray-500">
-              <Loader2 className="h-3.5 w-3.5 animate-spin" />
-              Buscando...
+            <div className="flex items-center gap-2 px-3 py-2.5 text-xs font-semibold text-gray-700">
+              <Loader2 className="h-3.5 w-3.5 animate-spin text-indigo-600" />
+              Buscando no Sankhya...
             </div>
           )}
           {!carregando && opcoes.length === 0 && (
-            <div className="px-3 py-2.5 text-xs text-gray-400">
+            <div className="px-3 py-2.5 text-xs font-semibold text-gray-600">
               {value.trim().length < 2
                 ? 'Digite pelo menos 2 caracteres'
-                : 'Nenhum resultado — campo será ignorado no salvamento'}
+                : 'Nenhum resultado — campo será gravado como texto'}
             </div>
           )}
           {!carregando &&
@@ -162,13 +164,15 @@ export function EnderecoCombobox({
                 type="button"
                 onClick={() => selecionar(opcao)}
                 onMouseEnter={() => setDestacado(i)}
-                className={`flex w-full items-center justify-between gap-2 px-3 py-2 text-left text-xs transition-colors ${
-                  i === destacado ? 'bg-blue-50 text-blue-700' : 'text-gray-700 hover:bg-gray-50'
+                className={`flex w-full items-center justify-between gap-2 px-3 py-2 text-left text-xs font-semibold transition-colors cursor-pointer ${
+                  i === destacado
+                    ? 'bg-indigo-50 text-indigo-700 font-bold'
+                    : 'text-gray-900 hover:bg-gray-50'
                 }`}
               >
                 <span className="truncate">{opcao.nome}</span>
                 {opcao.extra && (
-                  <span className="shrink-0 rounded bg-gray-100 px-1.5 py-0.5 font-mono text-[10px] text-gray-500">
+                  <span className="shrink-0 rounded bg-gray-100 px-1.5 py-0.5 font-mono text-[10px] font-bold text-gray-700">
                     {opcao.extra}
                   </span>
                 )}

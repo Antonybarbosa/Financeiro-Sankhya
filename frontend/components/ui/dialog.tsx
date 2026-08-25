@@ -43,17 +43,15 @@ export function Dialog({ open, onClose, children, className }: DialogProps) {
   )
 }
 
-export function DialogHeader({ children }: { children: React.ReactNode }) {
+export function DialogHeader({ children, className }: { children: React.ReactNode; className?: string }) {
   return (
-    <div className="flex items-start justify-between border-b border-gray-200 px-6 py-4">
-      <div className="flex-1">{children}</div>
-    </div>
+    <div className={cn("flex items-start justify-between border-b border-gray-200 px-6 py-4", className)}>{children}</div>
   )
 }
 
-export function DialogTitle({ children }: { children: React.ReactNode }) {
+export function DialogTitle({ children, className }: { children: React.ReactNode; className?: string }) {
   return (
-    <h2 className="text-lg font-bold text-gray-900">{children}</h2>
+    <h2 className={cn("text-lg font-bold text-gray-900", className)}>{children}</h2>
   )
 }
 
@@ -63,9 +61,9 @@ export function DialogContent({ children, className }: { children: React.ReactNo
   )
 }
 
-export function DialogFooter({ children }: { children: React.ReactNode }) {
+export function DialogFooter({ children, className }: { children: React.ReactNode; className?: string }) {
   return (
-    <div className="flex items-center justify-end gap-3 border-t border-gray-200 px-6 py-4">
+    <div className={cn("flex items-center justify-end gap-3 border-t border-gray-200 px-6 py-4", className)}>
       {children}
     </div>
   )

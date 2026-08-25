@@ -35,10 +35,10 @@ export function ClientesModule() {
       <div className="flex items-center justify-between gap-3">
         <div className="flex items-center gap-2">
           {countData?.total !== undefined && (
-            <div className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs text-gray-600 shadow-sm">
-              <UserCheck className="h-4 w-4 text-blue-600" />
+            <div className="inline-flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-3.5 py-1.5 text-xs font-semibold text-gray-700 shadow-xs">
+              <UserCheck className="h-4 w-4 text-indigo-600" />
               <span>Total de Clientes:</span>
-              <strong className="font-bold text-gray-900">{countData.total}</strong>
+              <strong className="font-extrabold text-gray-900">{countData.total}</strong>
             </div>
           )}
         </div>
@@ -46,7 +46,7 @@ export function ClientesModule() {
         <Button
           onClick={handleOpenCreateModal}
           size="sm"
-          className="gap-2 bg-blue-600 hover:bg-blue-700 text-white shadow-sm font-semibold"
+          className="gap-2 bg-indigo-600 hover:bg-indigo-700 text-white shadow-xs font-bold transition-colors cursor-pointer"
         >
           <Plus className="h-4 w-4" />
           Novo Cliente

@@ -683,7 +683,7 @@ export class SankhyaClienteRepository implements IClienteRepository {
       if (codBai > 0) { cplCampos.push('ComplementoParc.CODBAIENTREGA'); cplValores.push(String(codBai)); }
       if (codCid > 0) { cplCampos.push('ComplementoParc.CODCIDENTREGA'); cplValores.push(String(codCid)); }
       if (entE.numero != null) { cplCampos.push('ComplementoParc.NUMENTREGA'); cplValores.push(entE.numero.trim().substring(0, 6)); }
-      if (entE.complemento != null) { cplCampos.push('ComplementoParc.COMPLENTREGA'); cplValores.push(entE.complemento.trim()); }
+      if (entE.complemento != null) { cplCampos.push('ComplementoParc.COMPLENTREGA'); cplValores.push(entE.complemento.trim().substring(0, 30)); }
       if (entE.cep != null) { cplCampos.push('ComplementoParc.CEPENTREGA'); cplValores.push(entE.cep.replace(/\D/g, '')); }
       if (dto.latitudeEntrega != null) { cplCampos.push('ComplementoParc.LATITUDEENTREGA'); cplValores.push(dto.latitudeEntrega.trim()); }
       if (dto.longitudeEntrega != null) { cplCampos.push('ComplementoParc.LONGITUDEENTREGA'); cplValores.push(dto.longitudeEntrega.trim()); }
@@ -814,12 +814,12 @@ export class SankhyaClienteRepository implements IClienteRepository {
 
     if (endereco.numero != null && endereco.numero.trim()) {
       campos.push('NUMEND');
-      valores.push(endereco.numero.trim());
+      valores.push(endereco.numero.trim().substring(0, 6));
     }
 
     if (endereco.complemento != null && endereco.complemento.trim()) {
       campos.push('COMPLEMENTO');
-      valores.push(endereco.complemento.trim());
+      valores.push(endereco.complemento.trim().substring(0, 30));
     }
 
     if (endereco.cep != null && endereco.cep.trim()) {

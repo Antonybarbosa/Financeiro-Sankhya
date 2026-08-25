@@ -97,6 +97,27 @@ export const NEGOCIACAO_OPCOES = [
   { value: '2', label: 'Consolidar títulos' },
 ];
 
+export const TIPO_TITULO_OPCOES = [
+  { value: 2, label: '2 - Boleto' },
+  { value: 1, label: '1 - Dinheiro' },
+  { value: 3, label: '3 - Cheque' },
+  { value: 4, label: '4 - Cartão de Crédito/Débito' },
+  { value: 5, label: '5 - Depósito / Transferência' },
+];
+
+export const CONTA_OPCOES = [
+  { value: 97, label: '97 - Banco Bradesco' },
+  { value: 1, label: '1 - Caixa Geral' },
+  { value: 10, label: '10 - Banco do Brasil' },
+  { value: 20, label: '20 - Itaú Unibanco' },
+  { value: 30, label: '30 - Santander' },
+];
+
+export const EMPRESA_OPCOES = [
+  { value: 2, label: '2 - Empresa Principal (Cód 2)' },
+  { value: 1, label: '1 - Matriz (Cód 1)' },
+];
+
 export const DEFAULT_RENEGOCIACAO_PARAMS: Omit<RenegociacaoParams, 'nufins'> = {
   nroparcel: 3,
   freq: '3',

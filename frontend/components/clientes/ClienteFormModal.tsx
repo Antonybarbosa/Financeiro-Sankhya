@@ -53,6 +53,9 @@ import {
   Download,
   ExternalLink,
   AlertTriangle,
+  Zap,
+  SlidersHorizontal,
+  ShieldCheck,
 } from 'lucide-react';
 import { formatCnpjCpf, formatPhone, formatCep, formatCurrencyInput, parseCurrencyInput } from '@/lib/utils';
 import { EnderecoCombobox, OpcaoEndereco } from './EnderecoCombobox';
@@ -95,6 +98,17 @@ export function ClienteFormModal({ isOpen, onClose, cliente }: ClienteFormModalP
 
   const [tab, setTab] = useState<'geral' | 'contato' | 'endereco' | 'empresas' | 'financeiro' | 'fiscal' | 'customizados' | 'anexos'>('geral');
   const [subTabEndereco, setSubTabEndereco] = useState<'principal' | 'entrega'>('principal');
+  const [modoFormulario, setModoFormulario] = useState<'rapido' | 'completo'>('completo');
+
+  useEffect(() => {
+    if (isOpen) {
+      if (!cliente) {
+        setModoFormulario('rapido');
+      } else {
+        setModoFormulario('completo');
+      }
+    }
+  }, [isOpen, cliente]);
 
   // Tab 5: Empresas / Grupo ICMS (TGFPAEM)
   const { data: empresasParceiro = [], isLoading: isLoadingEmpresas, refetch: refetchEmpresas } = useEmpresasParceiro(cliente?.codParc ?? null);
@@ -527,6 +541,24 @@ export function ClienteFormModal({ isOpen, onClose, cliente }: ClienteFormModalP
     bairroTexto,
     lograTexto,
   ]);
+
+  const completenessScore = useMemo(() => {
+    let score = 0;
+    const fields = [
+      !!nomeParc.trim(),
+      !!cnpjCpf.trim(),
+      !!telefone.trim(),
+      !!email.trim(),
+      !!cep.trim(),
+      !!(cidadeSel || cidadeTexto.trim()),
+      !!(limiteCredito.trim() && limiteCredito !== '0'),
+      !!(inscricaoEstadual.trim() || tipoPessoa === 'F'),
+    ];
+    fields.forEach((f) => {
+      if (f) score++;
+    });
+    return Math.round((score / fields.length) * 100);
+  }, [nomeParc, cnpjCpf, telefone, email, cep, cidadeSel, cidadeTexto, limiteCredito, inscricaoEstadual, tipoPessoa]);
 
   useEffect(() => {
     setModoVisualizacao(!!clienteAtual);
@@ -963,7 +995,7 @@ export function ClienteFormModal({ isOpen, onClose, cliente }: ClienteFormModalP
         }
         if (res.telefone) setTelefone(formatPhone(res.telefone));
         if (res.numero) setNumero(res.numero);
-        if (res.complemento) setComplemento(res.complemento);
+        if (res.complemento) setComplemento(res.complemento.substring(0, 30));
 
         if (res.cep) {
           const formattedCep = formatCep(res.cep);
@@ -1194,8 +1226,8 @@ export function ClienteFormModal({ isOpen, onClose, cliente }: ClienteFormModalP
         codBai: bairroEntregaSel?.codigo,
         codEnd: lograEntregaSel?.codigo,
         logradouro: lograEntregaSel?.nome ?? (lograEntregaTexto.trim() || undefined),
-        numero: numeroEntrega.trim() || undefined,
-        complemento: complementoEntrega.trim() || undefined,
+        numero: numeroEntrega.trim().slice(0, 6) || undefined,
+        complemento: complementoEntrega.trim().slice(0, 30) || undefined,
         bairro: bairroEntregaSel?.nome ?? (bairroEntregaTexto.trim() || undefined),
         cidade: cidadeEntregaSel?.nome ?? (cidEntTextoLimpo || undefined),
         uf: ufEntExtraida,
@@ -1225,8 +1257,8 @@ export function ClienteFormModal({ isOpen, onClose, cliente }: ClienteFormModalP
         uf: typeof cidadeSel?.extra === 'string' ? cidadeSel.extra : undefined,
         bairro: bairroSel?.nome ?? (bairroTexto.trim() || undefined),
         logradouro: lograSel?.nome ?? (lograTexto.trim() || undefined),
-        numero: numero.trim() || undefined,
-        complemento: complemento.trim() || undefined,
+        numero: numero.trim().slice(0, 6) || undefined,
+        complemento: complemento.trim().slice(0, 30) || undefined,
         cep: cep.trim() || undefined,
       };
     }
@@ -1303,8 +1335,8 @@ export function ClienteFormModal({ isOpen, onClose, cliente }: ClienteFormModalP
             codBai: bairroEntregaSel?.codigo,
             codEnd: lograEntregaSel?.codigo,
             logradouro: lograEntregaSel?.nome ?? (lograEntregaTexto.trim() || undefined),
-            numero: numeroEntrega.trim() || undefined,
-            complemento: complementoEntrega.trim() || undefined,
+            numero: numeroEntrega.trim().slice(0, 6) || undefined,
+            complemento: complementoEntrega.trim().slice(0, 30) || undefined,
             bairro: bairroEntregaSel?.nome ?? (bairroEntregaTexto.trim() || undefined),
             cidade: cidadeEntregaSel?.nome ?? (cidadeEntregaTexto.replace(/\s*\([^)]*\)\s*$/, '').trim() || undefined),
             uf: typeof cidadeEntregaSel?.extra === 'string'
@@ -1320,8 +1352,8 @@ export function ClienteFormModal({ isOpen, onClose, cliente }: ClienteFormModalP
             uf: typeof cidadeSel?.extra === 'string' ? cidadeSel.extra : undefined,
             bairro: bairroSel?.nome ?? (bairroTexto.trim() || undefined),
             logradouro: lograSel?.nome ?? (lograTexto.trim() || undefined),
-            numero: numero.trim() || undefined,
-            complemento: complemento.trim() || undefined,
+            numero: numero.trim().slice(0, 6) || undefined,
+            complemento: complemento.trim().slice(0, 30) || undefined,
             cep: cep.trim() || undefined,
           },
         };
@@ -1378,23 +1410,53 @@ export function ClienteFormModal({ isOpen, onClose, cliente }: ClienteFormModalP
           </div>
 
           <div className="flex items-center gap-2">
+            {/* Mode Switcher: Rápido vs Completo */}
+            <div className="flex items-center rounded-lg border border-gray-300 bg-gray-100 p-0.5 shadow-xs">
+              <button
+                type="button"
+                onClick={() => setModoFormulario('rapido')}
+                title="Visualização simplificada com apenas os campos fundamentais"
+                className={`inline-flex items-center gap-1 rounded-md px-2.5 py-1 text-xs font-bold transition-all cursor-pointer ${
+                  modoFormulario === 'rapido'
+                    ? 'bg-indigo-600 text-white shadow-xs'
+                    : 'text-gray-700 hover:text-gray-900'
+                }`}
+              >
+                <Zap className="h-3.5 w-3.5" />
+                Cadastro Rápido
+              </button>
+              <button
+                type="button"
+                onClick={() => setModoFormulario('completo')}
+                title="Visualização ERP completa com todos os campos e tabelas do Sankhya"
+                className={`inline-flex items-center gap-1 rounded-md px-2.5 py-1 text-xs font-bold transition-all cursor-pointer ${
+                  modoFormulario === 'completo'
+                    ? 'bg-indigo-600 text-white shadow-xs'
+                    : 'text-gray-700 hover:text-gray-900'
+                }`}
+              >
+                <SlidersHorizontal className="h-3.5 w-3.5" />
+                Cadastro Completo (ERP)
+              </button>
+            </div>
+
             {isEditing && (
               <button
                 type="button"
                 onClick={() => setModoVisualizacao(!modoVisualizacao)}
-                className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors ${
+                className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold transition-colors cursor-pointer ${
                   modoVisualizacao
-                    ? 'bg-amber-50 text-amber-700 border border-amber-300 hover:bg-amber-100'
-                    : 'bg-blue-50 text-blue-700 border border-blue-300 hover:bg-blue-100'
+                    ? 'bg-amber-50 text-amber-800 border border-amber-300 hover:bg-amber-100 shadow-xs'
+                    : 'bg-indigo-50 text-indigo-700 border border-indigo-300 hover:bg-indigo-100 shadow-xs'
                 }`}
               >
                 {modoVisualizacao ? (
                   <>
-                    <Pencil className="h-3.5 w-3.5 text-amber-700" /> Habilitar Edição
+                    <Pencil className="h-3.5 w-3.5 text-amber-800" /> Habilitar Edição
                   </>
                 ) : (
                   <>
-                    <Eye className="h-3.5 w-3.5 text-blue-700" /> Modo Leitura
+                    <Eye className="h-3.5 w-3.5 text-indigo-700" /> Modo Leitura
                   </>
                 )}
               </button>
@@ -1402,11 +1464,37 @@ export function ClienteFormModal({ isOpen, onClose, cliente }: ClienteFormModalP
             <button
               type="button"
               onClick={onClose}
-              className="rounded-lg p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-colors"
+              className="rounded-lg p-1.5 text-gray-400 hover:bg-gray-200 hover:text-gray-700 transition-colors cursor-pointer"
             >
               <X className="h-5 w-5" />
             </button>
           </div>
+        </div>
+
+        {/* Barra de Saúde / Completude do Cadastro */}
+        <div className="flex items-center justify-between border-b border-gray-200 bg-indigo-50/50 px-6 py-2 text-xs">
+          <div className="flex items-center gap-2">
+            <ShieldCheck className="h-4 w-4 text-indigo-600" />
+            <span className="font-bold text-gray-800">Completude do Cadastro:</span>
+            <div className="h-2 w-28 rounded-full bg-gray-200 overflow-hidden">
+              <div
+                className={`h-full transition-all duration-500 ${
+                  completenessScore >= 80
+                    ? 'bg-green-600'
+                    : completenessScore >= 50
+                    ? 'bg-amber-500'
+                    : 'bg-red-500'
+                }`}
+                style={{ width: `${completenessScore}%` }}
+              />
+            </div>
+            <span className="font-extrabold text-indigo-900">{completenessScore}%</span>
+          </div>
+          <span className="text-[11px] font-semibold text-gray-600 hidden md:inline">
+            {completenessScore === 100
+              ? '✨ Cadastro 100% completo e qualificado!'
+              : '💡 Dica: Preencha CNPJ, Nome, Telefone, E-mail e Endereço para atingir 100%'}
+          </span>
         </div>
 
         {/* Feedback Banners (Erro ou Sucesso) */}
@@ -1445,110 +1533,112 @@ export function ClienteFormModal({ isOpen, onClose, cliente }: ClienteFormModalP
           </div>
         )}
 
-        {/* Tab Navigation */}
-        <div className="flex border-b border-gray-200 bg-white px-6 overflow-x-auto">
-          <button
-            type="button"
-            onClick={() => setTab('geral')}
-            className={`flex items-center gap-2 border-b-2 py-3 px-3 text-xs font-semibold whitespace-nowrap transition-colors ${
-              tab === 'geral'
-                ? 'border-blue-600 text-blue-600'
-                : 'border-transparent text-gray-500 hover:text-gray-700'
-            }`}
-          >
-            <FileText className="h-4 w-4" />
-            Dados Gerais
-          </button>
-          <button
-            type="button"
-            onClick={() => setTab('contato')}
-            className={`flex items-center gap-2 border-b-2 py-3 px-3 text-xs font-semibold whitespace-nowrap transition-colors ${
-              tab === 'contato'
-                ? 'border-blue-600 text-blue-600'
-                : 'border-transparent text-gray-500 hover:text-gray-700'
-            }`}
-          >
-            <Phone className="h-4 w-4" />
-            Contato
-          </button>
-          <button
-            type="button"
-            onClick={() => setTab('endereco')}
-            className={`flex items-center gap-2 border-b-2 py-3 px-3 text-xs font-semibold whitespace-nowrap transition-colors ${
-              tab === 'endereco'
-                ? 'border-blue-600 text-blue-600'
-                : 'border-transparent text-gray-500 hover:text-gray-700'
-            }`}
-          >
-            <MapPin className="h-4 w-4" />
-            Endereço
-          </button>
-          <button
-            type="button"
-            onClick={() => setTab('empresas')}
-            className={`flex items-center gap-2 border-b-2 py-3 px-3 text-xs font-semibold whitespace-nowrap transition-colors ${
-              tab === 'empresas'
-                ? 'border-blue-600 text-blue-600'
-                : 'border-transparent text-gray-500 hover:text-gray-700'
-            }`}
-          >
-            <Building className="h-4 w-4" />
-            Empresas / Grupo ICMS
-          </button>
-          <button
-            type="button"
-            onClick={() => setTab('financeiro')}
-            className={`flex items-center gap-2 border-b-2 py-3 px-3 text-xs font-semibold whitespace-nowrap transition-colors ${
-              tab === 'financeiro'
-                ? 'border-blue-600 text-blue-600'
-                : 'border-transparent text-gray-500 hover:text-gray-700'
-            }`}
-          >
-            <CreditCard className="h-4 w-4" />
-            Financeiro & Crédito
-          </button>
-          <button
-            type="button"
-            onClick={() => setTab('fiscal')}
-            className={`flex items-center gap-2 border-b-2 py-3 px-3 text-xs font-semibold whitespace-nowrap transition-colors ${
-              tab === 'fiscal'
-                ? 'border-blue-600 text-blue-600'
-                : 'border-transparent text-gray-500 hover:text-gray-700'
-            }`}
-          >
-            <Receipt className="h-4 w-4" />
-            Fiscal
-          </button>
-          <button
-            type="button"
-            onClick={() => setTab('customizados')}
-            className={`flex items-center gap-2 border-b-2 py-3 px-3 text-xs font-semibold whitespace-nowrap transition-colors ${
-              tab === 'customizados'
-                ? 'border-blue-600 text-blue-600'
-                : 'border-transparent text-gray-500 hover:text-gray-700'
-            }`}
-          >
-            <Layers className="h-4 w-4" />
-            Campos AD_*
-          </button>
-          <button
-            type="button"
-            onClick={() => setTab('anexos')}
-            className={`flex items-center gap-2 border-b-2 py-3 px-3 text-xs font-semibold whitespace-nowrap transition-colors ${
-              tab === 'anexos'
-                ? 'border-blue-600 text-blue-600'
-                : 'border-transparent text-gray-500 hover:text-gray-700'
-            }`}
-          >
-            <Paperclip className="h-4 w-4" />
-            Anexos & Documentos
-            {anexosParceiro.length > 0 && (
-              <span className="ml-1 rounded-full bg-blue-100 px-1.5 py-0.5 text-[10px] font-bold text-blue-700">
-                {anexosParceiro.length}
-              </span>
-            )}
-          </button>
-        </div>
+        {/* Tab Navigation (Exibido apenas no Modo Completo ERP) */}
+        {modoFormulario === 'completo' && (
+          <div className="flex border-b border-gray-200 bg-white px-6 overflow-x-auto">
+            <button
+              type="button"
+              onClick={() => setTab('geral')}
+              className={`flex items-center gap-2 border-b-2 py-3 px-3 text-xs font-bold whitespace-nowrap transition-colors cursor-pointer ${
+                tab === 'geral'
+                  ? 'border-indigo-600 text-indigo-700'
+                  : 'border-transparent text-gray-700 hover:text-gray-900'
+              }`}
+            >
+              <FileText className="h-4 w-4" />
+              Dados Gerais
+            </button>
+            <button
+              type="button"
+              onClick={() => setTab('contato')}
+              className={`flex items-center gap-2 border-b-2 py-3 px-3 text-xs font-bold whitespace-nowrap transition-colors cursor-pointer ${
+                tab === 'contato'
+                  ? 'border-indigo-600 text-indigo-700'
+                  : 'border-transparent text-gray-700 hover:text-gray-900'
+              }`}
+            >
+              <Phone className="h-4 w-4" />
+              Contato
+            </button>
+            <button
+              type="button"
+              onClick={() => setTab('endereco')}
+              className={`flex items-center gap-2 border-b-2 py-3 px-3 text-xs font-bold whitespace-nowrap transition-colors cursor-pointer ${
+                tab === 'endereco'
+                  ? 'border-indigo-600 text-indigo-700'
+                  : 'border-transparent text-gray-700 hover:text-gray-900'
+              }`}
+            >
+              <MapPin className="h-4 w-4" />
+              Endereço
+            </button>
+            <button
+              type="button"
+              onClick={() => setTab('empresas')}
+              className={`flex items-center gap-2 border-b-2 py-3 px-3 text-xs font-bold whitespace-nowrap transition-colors cursor-pointer ${
+                tab === 'empresas'
+                  ? 'border-indigo-600 text-indigo-700'
+                  : 'border-transparent text-gray-700 hover:text-gray-900'
+              }`}
+            >
+              <Building className="h-4 w-4" />
+              Empresas / Grupo ICMS
+            </button>
+            <button
+              type="button"
+              onClick={() => setTab('financeiro')}
+              className={`flex items-center gap-2 border-b-2 py-3 px-3 text-xs font-bold whitespace-nowrap transition-colors cursor-pointer ${
+                tab === 'financeiro'
+                  ? 'border-indigo-600 text-indigo-700'
+                  : 'border-transparent text-gray-700 hover:text-gray-900'
+              }`}
+            >
+              <CreditCard className="h-4 w-4" />
+              Financeiro & Crédito
+            </button>
+            <button
+              type="button"
+              onClick={() => setTab('fiscal')}
+              className={`flex items-center gap-2 border-b-2 py-3 px-3 text-xs font-bold whitespace-nowrap transition-colors cursor-pointer ${
+                tab === 'fiscal'
+                  ? 'border-indigo-600 text-indigo-700'
+                  : 'border-transparent text-gray-700 hover:text-gray-900'
+              }`}
+            >
+              <Receipt className="h-4 w-4" />
+              Fiscal
+            </button>
+            <button
+              type="button"
+              onClick={() => setTab('customizados')}
+              className={`flex items-center gap-2 border-b-2 py-3 px-3 text-xs font-bold whitespace-nowrap transition-colors cursor-pointer ${
+                tab === 'customizados'
+                  ? 'border-indigo-600 text-indigo-700'
+                  : 'border-transparent text-gray-700 hover:text-gray-900'
+              }`}
+            >
+              <Layers className="h-4 w-4" />
+              Campos AD_*
+            </button>
+            <button
+              type="button"
+              onClick={() => setTab('anexos')}
+              className={`flex items-center gap-2 border-b-2 py-3 px-3 text-xs font-bold whitespace-nowrap transition-colors cursor-pointer ${
+                tab === 'anexos'
+                  ? 'border-indigo-600 text-indigo-700'
+                  : 'border-transparent text-gray-700 hover:text-gray-900'
+              }`}
+            >
+              <Paperclip className="h-4 w-4" />
+              Anexos & Documentos
+              {anexosParceiro.length > 0 && (
+                <span className="ml-1 rounded-full bg-indigo-100 px-1.5 py-0.5 text-[10px] font-bold text-indigo-800">
+                  {anexosParceiro.length}
+                </span>
+              )}
+            </button>
+          </div>
+        )}
 
         {/* Form Body */}
         <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-6">
@@ -1568,8 +1658,211 @@ export function ClienteFormModal({ isOpen, onClose, cliente }: ClienteFormModalP
             </div>
           ) : (
             <>
-              {/* TAB 1: DADOS GERAIS */}
-          {tab === 'geral' && (
+              {/* MODO CADASTRO RÁPIDO (3 CARDS COMPACTOS) */}
+              {modoFormulario === 'rapido' && (
+                <div className="space-y-4 animate-in fade-in duration-200">
+                  {/* Card 1: Identificação */}
+                  <div className="rounded-xl border border-indigo-200 bg-indigo-50/50 p-4 space-y-4 shadow-xs">
+                    <h4 className="text-xs font-extrabold text-indigo-950 uppercase tracking-wider flex items-center gap-1.5 border-b border-indigo-200/80 pb-2">
+                      <Building className="h-4 w-4 text-indigo-600" />
+                      1. Identificação Básica do Cliente
+                    </h4>
+                    <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-end">
+                      <div className="md:col-span-3">
+                        <label className="block text-xs font-bold text-gray-800 mb-1">
+                          Tipo de Pessoa <span className="text-red-500">*</span>
+                        </label>
+                        <div className="flex gap-4 pt-1">
+                          <label className="flex items-center gap-2 text-xs font-bold text-gray-800 cursor-pointer">
+                            <input
+                              type="radio"
+                              name="tipoPessoaRapido"
+                              value="J"
+                              checked={tipoPessoa === 'J'}
+                              onChange={() => setTipoPessoa('J')}
+                              className="text-indigo-600 focus:ring-indigo-500 h-4 w-4"
+                            />
+                            Jurídica (PJ)
+                          </label>
+                          <label className="flex items-center gap-2 text-xs font-bold text-gray-800 cursor-pointer">
+                            <input
+                              type="radio"
+                              name="tipoPessoaRapido"
+                              value="F"
+                              checked={tipoPessoa === 'F'}
+                              onChange={() => setTipoPessoa('F')}
+                              className="text-indigo-600 focus:ring-indigo-500 h-4 w-4"
+                            />
+                            Física (PF)
+                          </label>
+                        </div>
+                      </div>
+
+                      <div className="md:col-span-5">
+                        <label className="block text-xs font-bold text-gray-800 mb-1">
+                          {tipoPessoa === 'J' ? 'CNPJ' : 'CPF'} <span className="text-red-500">*</span>
+                        </label>
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="text"
+                            placeholder={tipoPessoa === 'J' ? '00.000.000/0000-00' : '000.000.000-00'}
+                            value={cnpjCpf}
+                            onChange={handleCnpjCpfChange}
+                            className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-xs font-bold text-gray-900 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20"
+                          />
+                          {tipoPessoa === 'J' && (
+                            <button
+                              type="button"
+                              onClick={() => handleConsultarCnpjPublico(cnpjCpf)}
+                              disabled={isConsultandoCnpj}
+                              className="inline-flex items-center gap-1 shrink-0 rounded-lg bg-indigo-600 px-3 py-2 text-xs font-bold text-white shadow-xs hover:bg-indigo-700 disabled:opacity-50 cursor-pointer"
+                            >
+                              {isConsultandoCnpj ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Search className="h-3.5 w-3.5" />}
+                              Consultar
+                            </button>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="md:col-span-4">
+                        <label className="block text-xs font-bold text-gray-800 mb-1">
+                          Inscrição Estadual (IE)
+                        </label>
+                        <input
+                          type="text"
+                          placeholder="Isento ou Nº da IE"
+                          value={inscricaoEstadual}
+                          onChange={(e) => setInscricaoEstadual(e.target.value)}
+                          className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-xs font-bold text-gray-900 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20"
+                        />
+                      </div>
+
+                      <div className="md:col-span-12">
+                        <FormLabel label="Nome do Cliente / Razão Social" obrigatorio />
+                        <input
+                          type="text"
+                          placeholder="Nome fantasia ou Razão social completa"
+                          value={nomeParc}
+                          onChange={(e) => setNomeParc(e.target.value)}
+                          className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-xs font-bold text-gray-900 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Card 2: Contatos */}
+                  <div className="rounded-xl border border-gray-200 bg-gray-50/60 p-4 space-y-3 shadow-xs">
+                    <h4 className="text-xs font-extrabold text-gray-900 uppercase tracking-wider flex items-center gap-1.5 border-b border-gray-200 pb-2">
+                      <Phone className="h-4 w-4 text-indigo-600" />
+                      2. Contato Direto & Notificações
+                    </h4>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div>
+                        <FormLabel label="Telefone / WhatsApp" />
+                        <input
+                          type="text"
+                          placeholder="(00) 00000-0000"
+                          value={telefone}
+                          onChange={(e) => setTelefone(formatPhone(e.target.value))}
+                          className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-xs font-bold text-gray-900 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20"
+                        />
+                      </div>
+                      <div>
+                        <FormLabel label="E-mail Principal" />
+                        <input
+                          type="email"
+                          placeholder="contato@cliente.com.br"
+                          value={email}
+                          onChange={(e) => setEmail(e.target.value)}
+                          className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-xs font-bold text-gray-900 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Card 3: Endereço Principal */}
+                  <div className="rounded-xl border border-gray-200 bg-gray-50/60 p-4 space-y-3 shadow-xs">
+                    <h4 className="text-xs font-extrabold text-gray-900 uppercase tracking-wider flex items-center gap-1.5 border-b border-gray-200 pb-2">
+                      <MapPin className="h-4 w-4 text-indigo-600" />
+                      3. Endereço Principal
+                    </h4>
+                    <div className="grid grid-cols-1 sm:grid-cols-12 gap-3">
+                      <div className="sm:col-span-4">
+                        <FormLabel label="CEP" />
+                        <div className="relative">
+                          <input
+                            type="text"
+                            placeholder="00000-000"
+                            value={cep}
+                            onChange={handleCepChange}
+                            className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-xs font-bold text-gray-900 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20"
+                          />
+                          {isBuscandoCepMain && (
+                            <Loader2 className="absolute right-3 top-2.5 h-4 w-4 animate-spin text-indigo-600" />
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="sm:col-span-8">
+                        <FormLabel label="Logradouro / Rua" />
+                        <input
+                          type="text"
+                          placeholder="Rua, Avenida, Alameda..."
+                          value={lograTexto}
+                          onChange={(e) => {
+                            setLograTexto(e.target.value);
+                            setLograSel(null);
+                          }}
+                          className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-xs font-bold text-gray-900 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20"
+                        />
+                      </div>
+
+                      <div className="sm:col-span-4">
+                        <FormLabel label="Número" />
+                        <input
+                          type="text"
+                          placeholder="123"
+                          value={numero}
+                          onChange={(e) => setNumero(e.target.value)}
+                          className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-xs font-bold text-gray-900 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20"
+                        />
+                      </div>
+
+                      <div className="sm:col-span-4">
+                        <FormLabel label="Bairro" />
+                        <input
+                          type="text"
+                          placeholder="Bairro"
+                          value={bairroTexto}
+                          onChange={(e) => {
+                            setBairroTexto(e.target.value);
+                            setBairroSel(null);
+                          }}
+                          className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-xs font-bold text-gray-900 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20"
+                        />
+                      </div>
+
+                      <div className="sm:col-span-4">
+                        <EnderecoCombobox
+                          label="Cidade / UF"
+                          placeholder="Buscar cidade..."
+                          fetcher={fetchCidades}
+                          value={cidadeTexto}
+                          onSelecionar={setCidadeSel}
+                          onTextoChange={setCidadeTexto}
+                          obrigatorio
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* MODO CADASTRO COMPLETO ERP (ABAS EXPANDIDAS) */}
+              {modoFormulario === 'completo' && (
+                <>
+                  {/* TAB 1: DADOS GERAIS */}
+                  {tab === 'geral' && (
             <div className="space-y-4">
               {/* 1. TIPO PESSOA, CNPJ/CPF COM CONSULTA RECEITA/SINTEGRA E INSCRIÇÃO ESTADUAL NO INÍCIO */}
               <div className="rounded-lg border border-blue-100 bg-blue-50/40 p-4 space-y-3 shadow-sm">
@@ -2037,6 +2330,7 @@ export function ClienteFormModal({ isOpen, onClose, cliente }: ClienteFormModalP
                       <input
                         type="text"
                         placeholder="Sala 101"
+                        maxLength={30}
                         value={complemento}
                         onChange={(e) => setComplemento(e.target.value)}
                         className="w-full rounded-lg border border-gray-300 px-3 py-2 text-xs font-medium text-gray-900 placeholder-gray-400 focus:border-blue-500 focus:outline-none"
@@ -2218,6 +2512,7 @@ export function ClienteFormModal({ isOpen, onClose, cliente }: ClienteFormModalP
                           <input
                             type="text"
                             placeholder="Galpão B, Docas 3"
+                            maxLength={30}
                             value={complementoEntrega}
                             onChange={(e) => setComplementoEntrega(e.target.value)}
                             className="w-full rounded-lg border border-gray-300 px-3 py-2 text-xs font-medium text-gray-900 placeholder-gray-400 focus:border-blue-500 focus:outline-none"
@@ -3291,6 +3586,8 @@ export function ClienteFormModal({ isOpen, onClose, cliente }: ClienteFormModalP
             </div>
           </div>
         )}
+                </>
+              )}
             </>
           )}
 
