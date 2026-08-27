@@ -18,6 +18,9 @@ import { AuthController } from './auth/auth.controller';
 import { AgendaController } from './agenda/agenda.controller';
 import { ClienteController } from './cliente/cliente.controller';
 
+import { WhatsAppModule } from './whatsapp/whatsapp.module';
+import { WhatsAppController } from './whatsapp/whatsapp.controller';
+
 @Module({
   imports: [
     ConfigModule.forRoot({
@@ -39,6 +42,7 @@ import { ClienteController } from './cliente/cliente.controller';
     RenegociacaoModule,
     ClienteModule,
     HealthModule,
+    WhatsAppModule,
   ],
   controllers: [
     CobrancaController,

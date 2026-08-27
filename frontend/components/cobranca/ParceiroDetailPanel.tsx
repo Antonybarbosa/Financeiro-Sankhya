@@ -2,6 +2,7 @@
 
 import { useState, useMemo } from 'react';
 import { useTitulosPorCliente } from '@/hooks/useCobranca';
+import { useWhatsAppStore } from '@/store/whatsappStore';
 import { FilaItem } from '@/types/cobranca';
 import {
   formatCurrency,
@@ -141,7 +142,15 @@ export function ParceiroDetailPanel({ item, onClose }: ParceiroDetailPanelProps)
               <>
                 <button
                   type="button"
-                  onClick={() => setWhatsAppOpen(true)}
+                  onClick={() => {
+                    if (item.telefone) {
+                      useWhatsAppStore.getState().openWhatsAppWithContact(
+                        item.telefone,
+                        item.parceiroId,
+                        item.razaoSocial || item.parceiroNome
+                      );
+                    }
+                  }}
                   className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-emerald-700 transition-colors shadow-xs cursor-pointer"
                 >
                   <MessageCircle className="h-3.5 w-3.5" />
