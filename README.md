@@ -115,6 +115,7 @@ REDIS_PORT=6379
 
 ## 📚 Documentação
 
+- **[INTEGRACAO_WHATSAPP.md](./INTEGRACAO_WHATSAPP.md)** - **Documentação completa da Integração WhatsApp Web (Extensão Chrome V3 + Drawer + Ponte Event-Driven)**
 - **[ESTRUTURA.md](./ESTRUTURA.md)** - Estrutura diretórios + organização
 - **[EXEMPLOS_USO.md](./EXEMPLOS_USO.md)** - Exemplos API
 - **[IMPLEMENTACAO.md](./IMPLEMENTACAO.md)** - Detalhes técnicos
@@ -130,9 +131,17 @@ REDIS_PORT=6379
 - ✅ Identificação vencidos + baixas
 - ✅ Sistema cobrança
 - ✅ Registro contatos/chamadas (TGFTEL)
+- ✅ Endpoints da Integração WhatsApp Web (`/api/whatsapp`)
 - ✅ Dashboard KPIs
 - ✅ Integração Sankhya
 - ✅ API REST completa
+
+### ✅ WhatsApp Web & Extensão Chrome Companion (Implementado)
+- ✅ Extensão Chrome Manifest V3 (`extension/`) para bypass de cabeçalhos de iframe
+- ✅ Drawer assistente flutuante mantido vivo no DOM (`GlobalWhatsAppDrawer.tsx`)
+- ✅ Painel contextual Sankhya com Fila de Cobrança (Lista + Detalhe)
+- ✅ Interpolação de modelos de mensagem e inserção no WhatsApp Web com 1-clique
+- ✅ Registro automático de históricos no Sankhya (`TGFTEL`)
 
 ### ⏳ Frontend (Planejado)
 - ⏳ Dashboard visual
