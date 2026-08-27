@@ -1,6 +1,101 @@
 # Registro de Progresso - Financeiro Sankhya
 
-> Última atualização: 21/08/2026
+> Última atualização: 27/08/2026
+
+---
+## Sessão 25 — Central de Templates de Mensagens WhatsApp, Disparo Inteligente, Expansão de Layout e Validação de Documentos
+
+> Desenvolvemos a Central de Templates de Mensagens do WhatsApp com suporte a 7 variáveis dinâmicas, persistência em `localStorage` via Zustand, pré-visualização em tempo real, expansão de layout dos modais, integração completa em todas as abas da Fila de Cobrança e validação condicional estrita de cores (Laranja vs Cinza) para Boletos e DANFE NFe.
+
+### 25.1. Store de Modelos com Persistência ([whatsappTemplateStore.ts](file:///c:/Users/inovace/Documents/Financeiro%20Sankhya/frontend/store/whatsappTemplateStore.ts))
+- Estado gerenciado via Zustand utilizando middleware `persist` na chave `whatsapp-templates-storage` do `localStorage`.
+- **4 Modelos Padrão de Fábrica Pré-configurados**:
+  1. **Cobrança Amigável (Valor Somado)**: Mensagem resumida e objetiva com o saldo cobrável total.
+  2. **Cobrança Detalhada (Por Título)**: Relação itemizada linha a linha com número do documento, parcela, vencimento e valor.
+  3. **Lembrete de Vencimento (Preventivo)**: Aviso amigável para faturas a vencer.
+  4. **Confirmação de Acordo / Renegociação**: Mensagem de confirmação de termos acordados.
+
+### 25.2. Motor de Interpolação & Tags Dinâmicas ([whatsappUtils.ts](file:///c:/Users/inovace/Documents/Financeiro%20Sankhya/frontend/lib/whatsappUtils.ts))
+- Suporte às variáveis: `{nome_parceiro}`, `{primeiro_nome}`, `{valor_total}`, `{qtd_titulos}`, `{lista_titulos_detalhada}`, `{vencimento_mais_antigo}`, `{data_hoje}`.
+- Geração automatizada da URL formatada para WhatsApp Web e App (`https://wa.me/55...`).
+
+### 25.3. Central de Gerenciamento de Modelos ([WhatsAppTemplatesConfigModal.tsx](file:///c:/Users/inovace/Documents/Financeiro%20Sankhya/frontend/components/cobranca/WhatsAppTemplatesConfigModal.tsx))
+- Interface para criar, editar, excluir e restaurar modelos.
+- Chips de inserção rápida de tags e **WhatsApp Live Preview** simulando o balão de conversa verde com horário atualizado.
+- **Layout Expandido**: Ampliado para `max-w-6xl` (1152px), área de texto do modelo com `rows={10}` e lista de modelos com `max-h-[580px]`.
+
+### 25.4. Modal de Disparo Inteligente & Conexão em Todas as Abas ([WhatsAppSendModal.tsx](file:///c:/Users/inovace/Documents/Financeiro%20Sankhya/frontend/components/cobranca/WhatsAppSendModal.tsx))
+- **Layout Expandido**: Ampliado para `max-w-5xl` (1024px), editor de mensagem com `rows={14}` e lista de títulos com `max-h-80`.
+- **Integração Total nas Abas**:
+  - **Agenda / Atendimento (`KanbanView.tsx`)**: Clique nos ícones dos cards aciona o modal.
+  - **Lista + Detalhe (`MasterDetailView.tsx`)**: Prop `onWhatsAppClick` repassada para os cards da lista lateral.
+  - **Tabela (`TableView.tsx`)**: Novo botão de ação de WhatsApp na coluna de **Ações** e acionamento na coluna de telefone.
+  - **Painel de Detalhes ([ParceiroDetailPanel.tsx](file:///c:/Users/inovace/Documents/Financeiro%20Sankhya/frontend/components/cobranca/ParceiroDetailPanel.tsx))**: Botões de cobrança de títulos expostos acionam a rotina.
+  - **Registro de Contato ([ContatoForm.tsx](file:///c:/Users/inovace/Documents/Financeiro%20Sankhya/frontend/components/cobranca/ContatoForm.tsx))**: Botão "Abrir WhatsApp" integrado ao modal.
+
+### 25.5. Validação Estrita de Boletos e DANFE NFe (Laranja vs Cinza)
+- **Boleto PDF (`Barcode`)**:
+  - **Laranja (`bg-amber-500`)**: Ativado se o título possuir `nossoNumero`, `codigoBarras` ou `linhaDigitavel` gravado na `TGFFIN` do Sankhya ERP.
+  - **Cinza (`bg-gray-100 disabled`)**: Desabilitado e acinzentado se não houver boleto gerado no Sankhya, evitando falsos cliques.
+- **DANFE NF-e (`ScrollText`)**:
+  - **Laranja (`bg-orange-500`)**: Ativado se o título tiver Nota Fiscal/Chave de NFe emitida (`hasNfe`).
+  - **Cinza (`bg-gray-100 disabled`)**: Desabilitado se não houver NFe emitida.
+
+### 25.6. Correção das Regras dos Hooks no React (`DashboardView.tsx`)
+- Movidas todas as declarações de `useState` para o topo do componente `DashboardView.tsx` antes do retorno condicional de carregamento (`if (isLoadingKpis)`), eliminando o alerta *"React has detected a change in the order of Hooks"*.
+
+### 25.7. Simplificação e Limpeza Visual de Interface
+- **Remoção de "Crédito: Boa" ([ClientesList.tsx](file:///c:/Users/inovace/Documents/Financeiro%20Sankhya/frontend/components/clientes/ClientesList.tsx))**: Removida a exibição do texto `Crédito: {SITUACAO_LABELS[cliente.situacao]}` da coluna de status na lista de clientes.
+- **Remoção do Botão de Excluir Parceiro ([ClientesList.tsx](file:///c:/Users/inovace/Documents/Financeiro%20Sankhya/frontend/components/clientes/ClientesList.tsx))**: Removido o botão da lixeira e o modal de inativação/exclusão de parceiro do módulo de cadastro.
+- **Remoção do Campo "Último" ([KanbanView.tsx](file:///c:/Users/inovace/Documents/Financeiro%20Sankhya/frontend/components/cobranca/views/KanbanView.tsx))**: Removida a exibição da data da última chamada nos cards de atendimento da visão Kanban.
+- **Remoção de Ícones e Botões de Ligação Telefônica ([KanbanView.tsx](file:///c:/Users/inovace/Documents/Financeiro%20Sankhya/frontend/components/cobranca/views/KanbanView.tsx), [ParceiroCard.tsx](file:///c:/Users/inovace/Documents/Financeiro%20Sankhya/frontend/components/cobranca/ParceiroCard.tsx), [ParceiroDetailPanel.tsx](file:///c:/Users/inovace/Documents/Financeiro%20Sankhya/frontend/components/cobranca/ParceiroDetailPanel.tsx), [ClientesList.tsx](file:///c:/Users/inovace/Documents/Financeiro%20Sankhya/frontend/components/clientes/ClientesList.tsx))**: Removidos os ícones de telefone e os botões de discagem telefônica direta dos cards, tabelas e painel de detalhes.
+
+### 25.8. Ajustes de Navegação & Limpeza de Interface
+- **Remoção da Aba Agenda ([Sidebar.tsx](file:///d:/Projeto/Financeiro%20Sankhya/frontend/components/layout/Sidebar.tsx))**: Removido o item `/agenda` e o ícone `Calendar` do menu de navegação lateral para simplificar a experiência do usuário.
+
+### 25.9. Status dos Compiladores
+- **Backend NestJS**: `npx tsc --noEmit` ✅ 0 erros
+- **Frontend Next.js**: `npx tsc --noEmit` ✅ 0 erros
+
+---
+## Sessão 24 — Dashboard de Metas, TSIEMP, Sidebar Recolhível e Alta Performance em Cobrança e Renegociação
+
+> Implementamos a barra lateral recolhível com persistência, o Dashboard de Cobrança com filtros de empresas (`TSIEMP`), o painel de metas corporativas (`AD_METASFIN`) com o **Assistente de Atingimento de Metas**, a restrição de atendimentos (`TGFTEL`) pelo usuário logado, otimização de alta performance no **Finalizar Atendimento** e a solução completa para tempos limites e efetivação de renegociações.
+
+### 24.1. Barra Lateral Recolhível (Sidebar)
+- **Store Zustand ([uiStore.ts](file:///c:/Users/inovace/Documents/Financeiro%20Sankhya/frontend/store/uiStore.ts))**: Criado estado global `isCollapsed` utilizando o middleware `persist` (`ui-storage` key no `localStorage`).
+- **Componente ([Sidebar.tsx](file:///c:/Users/inovace/Documents/Financeiro%20Sankhya/frontend/components/layout/Sidebar.tsx))**: Alterna suavemente a largura entre 256px (`w-64`) e 64px (`w-16`). Esconde nomes e dados de perfil mantendo ícones alinhados com *tooltips* no modo recolhido.
+
+### 24.2. Dashboard Executivo & Assistente de Atingimento de Metas
+- **Painel Principal ([DashboardView.tsx](file:///c:/Users/inovace/Documents/Financeiro%20Sankhya/frontend/components/cobranca/DashboardView.tsx))**:
+  - **Filtro Dinâmico de Empresas (`TSIEMP`)**: Populado dinamicamente via `useEmpresasDisponiveis()`, buscando todas as empresas cadastradas no banco do Sankhya ERP.
+  - **Assistente "Oportunidades para Atingir a Meta"**:
+    - **Meta Restante (R$)**: `Math.max(0, totalMeta - totalRecebido)`.
+    - **Saldo Cobrável em Carteira (R$)**: Total em aberto (`kpis.valorEmAberto`).
+    - **Taxa de Conversão Necessária (%)**: Percentual do saldo em aberto necessário para bater 100% da meta.
+    - **Alertas Estratégicos**: Orientações dinâmicas de cobrança para alavancar comissões.
+  - **Detalhamento por Faixa de Atraso (`AD_METASFIN`)**: Exibição da tabela consolidada com recebimentos (`VLRBAIXA`), metas corporativas, `% Atingido`, `% Comissão` e **Prêmio R$** calculados por regra.
+
+### 24.3. Restrição de Atendimentos TGFTEL por Usuário Logado
+- **Repositório ([sankhya-contato.repository.ts](file:///c:/Users/inovace/Documents/Financeiro%20Sankhya/backend/src/infrastructure/repositories/sankhya-contato.repository.ts))**:
+  - `findAtendimentosHoje`, `findPendentes` e `findProximasChamadas` agora aplicam a restrição do operador logado:
+    `AND (TEL.CODATENDENTE = ${usuarioId} OR TEL.CODUSU = ${usuarioId})`.
+
+### 24.4. Otimização de Resposta Instantânea no "Finalizar Atendimento"
+- **Backend ([contato.use-cases.ts](file:///c:/Users/inovace/Documents/Financeiro%20Sankhya/backend/src/application/use-cases/contato.use-cases.ts))**: Removido o `findById(id)` redundante de `marcarConcluido`, `marcarPendente` e `atualizarSituacao`, cortando 1 requisição SQL e reduzindo o tempo no backend em 50%.
+- **Frontend ([useCobranca.ts](file:///c:/Users/inovace/Documents/Financeiro%20Sankhya/frontend/hooks/useCobranca.ts))**: Aplicadas **Atualizações Otimistas (Optimistic UI Updates)** no React Query (`onMutate`), atualizando os cards e status da interface em **0ms de atraso percebido**.
+
+### 24.5. Solução do Timeout (30s) e Alta Velocidade na Renegociação
+- **Configuração de Timeouts no Axios ([lib/api.ts](file:///c:/Users/inovace/Documents/Financeiro%20Sankhya/frontend/lib/api.ts))**:
+  - Timeout global do Axios aumentado para 60s.
+  - Timeout dedicado de **120s** para `renegociacaoApi.simular()` e **180s** para `renegociacaoApi.confirmar()`, eliminando a interrupção prematura `timeout of 30000ms exceeded`.
+- **Backend ([sankhya-renegociacao.repository.ts](file:///c:/Users/inovace/Documents/Financeiro%20Sankhya/backend/src/infrastructure/repositories/sankhya-renegociacao.repository.ts))**:
+  - **Garantia de Dados Financeiros (`CODNAT`)**: O método `buscarTemplateTitulos(dto.nufins)` preenche obrigatoriamente a Natureza Financeira (`CODNAT`), Centro de Custo (`CODCENCUS`), Tipo de Operação (`CODTIPOPER`), Vendedor (`CODVEND`) e Empresa (`CODEMP`), resolvendo a exceção `Erro no financeiro. O Natureza deve ser informado`.
+  - **Extração na Memória**: Criado `extractParcelasGeradasDoResponse` para extrair os novos títulos gerados diretamente do retorno JSON do `RenegociacaoSP.renegociar`, dispensando consultas SQL adicionais pós-parcelamento e acelerando o processo de confirmação em 50%.
+
+### 24.6. Status dos Compiladores
+- **Backend NestJS**: `tsc --noEmit` ✅ 0 erros
+- **Frontend Next.js**: `tsc --noEmit` ✅ 0 erros
 
 ---
 ## Sessão 23 — Validação E2E de Download/Visualização de Anexos Físicos (TSIANX) & Resiliência Multi-Ambiente

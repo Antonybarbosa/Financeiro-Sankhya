@@ -126,10 +126,11 @@ export function formatCep(value: string | null): string {
   return value
 }
 
-export function formatWhatsAppLink(phone: string | null): string {
-  if (!phone) return '#'
-  const cleaned = phone.replace(/\D/g, '')
-  return `https://wa.me/55${cleaned}`
+export function formatWhatsAppLink(phone: string | null, text?: string): string {
+  if (!phone) return '#';
+  const cleaned = phone.replace(/\D/g, '');
+  const encodedText = text ? `?text=${encodeURIComponent(text)}` : '';
+  return `https://wa.me/55${cleaned}${encodedText}`;
 }
 
 export function formatTelLink(phone: string | null): string {

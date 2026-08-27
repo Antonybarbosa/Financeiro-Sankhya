@@ -12,6 +12,8 @@ import {
   SituacaoContato,
   Boleto,
   AtendimentoHojeResponse,
+  MetasPerformanceResponse,
+  MetasPerformanceParams,
 } from '@/types/cobranca';
 import { NfeDados } from '@/types/nfe';
 import { RenegociacaoParams, ConfirmarPayload, SimulacaoResultado, ConfirmacaoResultado } from '@/types/renegociacao';
@@ -32,7 +34,7 @@ const api = axios.create({
   headers: {
     'Content-Type': 'application/json',
   },
-  timeout: 30000,
+  timeout: 60000,
 });
 
 api.interceptors.request.use((config) => {
@@ -220,6 +222,17 @@ export const cobrancaApi = {
     const response = await api.get<AtendimentoHojeResponse>('/api/cobranca/atendimento/hoje');
     return response.data;
   },
+
+  async getMetasPerformance(params: MetasPerformanceParams = {}): Promise<MetasPerformanceResponse> {
+    const query: Record<string, string> = {};
+    if (params.mes) query.mes = String(params.mes);
+    if (params.ano) query.ano = String(params.ano);
+    if (params.codemp) query.codemp = String(params.codemp);
+    const response = await api.get<MetasPerformanceResponse>('/api/cobranca/dashboard/metas-performance', {
+      params: query,
+    });
+    return response.data;
+  },
 };
 
 export const nfeApi = {
@@ -242,12 +255,16 @@ export const nfeApi = {
 
 export const renegociacaoApi = {
   async simular(params: RenegociacaoParams): Promise<SimulacaoResultado> {
-    const response = await api.post<SimulacaoResultado>('/api/renegociacao/simular', params);
+    const response = await api.post<SimulacaoResultado>('/api/renegociacao/simular', params, {
+      timeout: 120000,
+    });
     return response.data;
   },
 
   async confirmar(payload: ConfirmarPayload): Promise<ConfirmacaoResultado> {
-    const response = await api.post<ConfirmacaoResultado>('/api/renegociacao/confirmar', payload);
+    const response = await api.post<ConfirmacaoResultado>('/api/renegociacao/confirmar', payload, {
+      timeout: 180000,
+    });
     return response.data;
   },
 };

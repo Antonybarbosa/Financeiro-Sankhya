@@ -5,6 +5,7 @@ import { useAtendimentosHoje, useConcluirContato, useMarcarPendenteContato } fro
 import { AtendimentoHojeItem } from '@/types/cobranca';
 import { ParceiroCard } from '../ParceiroCard';
 import { ParceiroDetailPanel } from '../ParceiroDetailPanel';
+import { WhatsAppSendModal } from '../WhatsAppSendModal';
 import { Input } from '@/components/ui/input';
 import { Loader2, Search, Inbox, ListFilter, ChevronDown } from 'lucide-react';
 
@@ -12,6 +13,11 @@ const PAGE_SIZE = 20;
 
 export function MasterDetailView() {
   const [selected, setSelected] = useState<AtendimentoHojeItem | null>(null);
+  const [whatsAppTarget, setWhatsAppTarget] = useState<{
+    parceiroId: number;
+    parceiroNome: string;
+    telefone?: string | null;
+  } | null>(null);
   const [buscaInput, setBuscaInput] = useState('');
   const [limit, setLimit] = useState(PAGE_SIZE);
 
@@ -105,6 +111,13 @@ export function MasterDetailView() {
                   isSelected={selected?.parceiroId === item.parceiroId}
                   onConcluir={(nurel) => concluirContato.mutate(nurel)}
                   onReabrir={(nurel) => marcarPendenteContato.mutate(nurel)}
+                  onWhatsAppClick={(cardItem) =>
+                    setWhatsAppTarget({
+                      parceiroId: cardItem.parceiroId,
+                      parceiroNome: cardItem.parceiroNome || cardItem.razaoSocial || '',
+                      telefone: cardItem.telefone,
+                    })
+                  }
                 />
               ))}
               {temMais && (
@@ -145,6 +158,16 @@ export function MasterDetailView() {
             <ParceiroDetailPanel item={selected} onClose={() => setSelected(null)} />
           </div>
         </div>
+      )}
+
+      {whatsAppTarget && (
+        <WhatsAppSendModal
+          open={!!whatsAppTarget}
+          onClose={() => setWhatsAppTarget(null)}
+          parceiroId={whatsAppTarget.parceiroId}
+          parceiroNome={whatsAppTarget.parceiroNome}
+          telefone={whatsAppTarget.telefone}
+        />
       )}
     </div>
   );

@@ -279,3 +279,28 @@ export class FiltroTitulosDto {
   @IsOptional()
   tiposCobranca?: TipoCobranca[];
 }
+
+export class MetasPerformanceItemDto {
+  regra: string;
+  recebido: number;
+  meta: number;
+  percCom: number;
+  premio: number;
+  percAtingido: number;
+}
+
+export class MetasPerformanceResponseDto {
+  items: MetasPerformanceItemDto[];
+  totais: {
+    totalRecebido: number;
+    totalMeta: number;
+    totalPremio: number;
+    percAtingidoGlobal: number;
+  };
+  mes: number;
+  ano: number;
+  codemp?: number | null;
+  dtini: string;
+  dtfim: string;
+}
+

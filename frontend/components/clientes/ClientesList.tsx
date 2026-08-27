@@ -2,13 +2,12 @@
 
 import { useState, useEffect } from 'react';
 import { Cliente, SITUACAO_LABELS } from '@/types/cliente';
-import { useClientes, useDeletarCliente, useDebounce } from '@/hooks/useCliente';
+import { useClientes, useDebounce } from '@/hooks/useCliente';
 import { Skeleton } from '@/components/ui/skeleton';
 import { toast } from '@/hooks/useToast';
 import {
   Search,
   Pencil,
-  Trash2,
   Building,
   User,
   Phone,
@@ -51,10 +50,6 @@ export function ClientesList({ onEditCliente }: ClientesListProps) {
   const [ativoFiltro, setAtivoFiltro] = useState<'S' | 'N' | ''>('');
   const [limite, setLimite] = useState(50);
 
-  const [clienteParaDeletar, setClienteParaDeletar] = useState<Cliente | null>(null);
-
-  const deletarMutation = useDeletarCliente();
-
   const buscaDebounced = useDebounce(busca, 500);
   const cleanedBusca = buscaDebounced.trim();
 
@@ -74,17 +69,6 @@ export function ClientesList({ onEditCliente }: ClientesListProps) {
   const clientes = data?.clientes || [];
   const total = data?.total || 0;
   const temMais = clientes.length < total;
-
-  const handleConfirmDelete = async () => {
-    if (!clienteParaDeletar) return;
-    try {
-      await deletarMutation.mutateAsync(clienteParaDeletar.codParc);
-      toast.success('Cliente inativado', `${clienteParaDeletar.nomeParc} foi marcado como inativo.`);
-      setClienteParaDeletar(null);
-    } catch (err: any) {
-      toast.error('Erro ao inativar', err?.response?.data?.message || 'Falha ao inativar cliente no Sankhya.');
-    }
-  };
 
   return (
     <div className="space-y-4">
@@ -227,9 +211,14 @@ export function ClientesList({ onEditCliente }: ClientesListProps) {
                             )}
                           </div>
                           <div className="overflow-hidden">
-                            <p className="truncate font-bold text-gray-900">
-                              {cliente.nomeParc}
+                            <p className="truncate font-extrabold text-gray-900">
+                              {cliente.razaoSocial || cliente.nomeParc}
                             </p>
+                            {cliente.razaoSocial && cliente.razaoSocial !== cliente.nomeParc && (
+                              <p className="truncate text-xs font-medium text-gray-500">
+                                {cliente.nomeParc}
+                              </p>
+                            )}
                           </div>
                         </div>
                       </td>
@@ -244,7 +233,6 @@ export function ClientesList({ onEditCliente }: ClientesListProps) {
                         <div className="space-y-0.5">
                           {foneFormatado && (
                             <div className="flex items-center gap-1 text-gray-800 font-bold">
-                              <Phone className="h-3 w-3 text-indigo-600" />
                               <span>{foneFormatado}</span>
                             </div>
                           )}
@@ -285,11 +273,6 @@ export function ClientesList({ onEditCliente }: ClientesListProps) {
                           ) : (
                             <Badge variant="default">Inativo</Badge>
                           )}
-                          {cliente.situacao && SITUACAO_LABELS[cliente.situacao] && (
-                            <span className="text-[10px] font-bold text-gray-600">
-                              Crédito: {SITUACAO_LABELS[cliente.situacao]}
-                            </span>
-                          )}
                         </div>
                       </td>
 
@@ -303,13 +286,6 @@ export function ClientesList({ onEditCliente }: ClientesListProps) {
                           >
                             <Pencil className="h-3.5 w-3.5 text-indigo-600" />
                             Editar
-                          </button>
-                          <button
-                            onClick={() => setClienteParaDeletar(cliente)}
-                            title="Inativar/Excluir"
-                            className="inline-flex items-center justify-center rounded-lg border border-gray-200 bg-white p-1 text-gray-400 hover:bg-red-50 hover:text-red-600 hover:border-red-300 transition-colors shadow-xs"
-                          >
-                            <Trash2 className="h-3.5 w-3.5" />
                           </button>
                         </div>
                       </td>
@@ -338,51 +314,6 @@ export function ClientesList({ onEditCliente }: ClientesListProps) {
           </div>
         )}
       </div>
-
-      {/* Delete Confirmation Modal */}
-      {clienteParaDeletar && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-xs animate-in fade-in duration-200">
-          <div className="w-full max-w-md rounded-xl bg-white p-6 shadow-2xl space-y-4 text-gray-900">
-            <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-red-100 text-red-600">
-                <AlertTriangle className="h-5 w-5" />
-              </div>
-              <div>
-                <h3 className="text-sm font-extrabold text-gray-900">Inativar Cliente</h3>
-                <p className="text-xs font-semibold text-gray-600">Confirmar alteração de situação</p>
-              </div>
-            </div>
-
-            <p className="text-xs font-semibold text-gray-700">
-              Tem certeza que deseja inativar o cliente{' '}
-              <strong className="text-gray-900">{clienteParaDeletar.nomeParc}</strong> (Código #{clienteParaDeletar.codParc})?
-            </p>
-
-            <div className="flex items-center justify-end gap-3 pt-2">
-              <button
-                onClick={() => setClienteParaDeletar(null)}
-                className="rounded-lg border border-gray-300 bg-white px-4 py-2 text-xs font-bold text-gray-700 hover:bg-gray-50 transition-colors shadow-xs"
-              >
-                Cancelar
-              </button>
-              <button
-                onClick={handleConfirmDelete}
-                disabled={deletarMutation.isPending}
-                className="inline-flex items-center gap-1.5 rounded-lg bg-red-600 px-4 py-2 text-xs font-bold text-white shadow-xs hover:bg-red-700 disabled:opacity-50 transition-colors"
-              >
-                {deletarMutation.isPending ? (
-                  <>
-                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                    Inativando...
-                  </>
-                ) : (
-                  'Confirmar Inativação'
-                )}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

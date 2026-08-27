@@ -173,8 +173,15 @@ export function AgendaList() {
                       </Badge>
                     )}
                   </td>
-                  <td className="whitespace-nowrap px-4 py-3 text-sm font-medium text-gray-900">
-                    {item.nomeParceiro}
+                  <td className="px-4 py-3 text-sm max-w-xs">
+                    <p className="truncate font-bold text-gray-900">
+                      {item.razaoSocial || item.nomeParceiro}
+                    </p>
+                    {item.razaoSocial && item.razaoSocial !== item.nomeParceiro && (
+                      <p className="truncate text-xs font-medium text-gray-500">
+                        {item.nomeParceiro}
+                      </p>
+                    )}
                   </td>
                   <td className="whitespace-nowrap px-4 py-3 text-sm text-gray-600">
                     {item.numnota || '-'}

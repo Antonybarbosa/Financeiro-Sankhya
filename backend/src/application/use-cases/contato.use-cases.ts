@@ -24,8 +24,9 @@ export class ContatoUseCases {
     @Inject('ITituloRepository') private readonly tituloRepository: ITituloRepository,
   ) {}
 
-  async criarContato(dto: CreateContatoDto): Promise<ContatoResponseDto> {
+  async criarContato(dto: CreateContatoDto, usuarioLogado?: IAuthUser): Promise<ContatoResponseDto> {
     const dataChamada = dto.dataChamada || new Date();
+    const usuarioId = Math.floor(usuarioLogado?.codusu ?? usuarioLogado?.id ?? 0);
 
     const contato = Contato.create({
       id: 0,
@@ -40,10 +41,10 @@ export class ContatoUseCases {
       mensagem: dto.mensagem || null,
       pendente: dto.pendente ?? true,
       situacao: dto.situacao || SituacaoContato.PENDENTE,
-      usuarioId: 0,
-      usuarioNome: null,
-      atendenteId: 0,
-      atendenteNome: null,
+      usuarioId: usuarioId,
+      usuarioNome: usuarioLogado?.nome || usuarioLogado?.login || null,
+      atendenteId: usuarioId,
+      atendenteNome: usuarioLogado?.nome || usuarioLogado?.login || null,
       vendedorId: null,
       nuFin: dto.nuFin || null,
       dataAlteracao: new Date(),
@@ -76,13 +77,15 @@ export class ContatoUseCases {
     return contatos.map(c => this.mapToResponseDto(c));
   }
 
-  async buscarPendentes(): Promise<ContatoResponseDto[]> {
-    const contatos = await this.contatoRepository.findPendentes();
+  async buscarPendentes(usuarioLogado?: IAuthUser): Promise<ContatoResponseDto[]> {
+    const usuarioId = Math.floor(usuarioLogado?.codusu ?? usuarioLogado?.id ?? 0);
+    const contatos = await this.contatoRepository.findPendentes(usuarioId);
     return contatos.map(c => this.mapToResponseDto(c));
   }
 
-  async buscarProximasChamadas(dias: number = 7): Promise<ContatoResponseDto[]> {
-    const contatos = await this.contatoRepository.findProximasChamadas(dias);
+  async buscarProximasChamadas(dias: number = 7, usuarioLogado?: IAuthUser): Promise<ContatoResponseDto[]> {
+    const usuarioId = Math.floor(usuarioLogado?.codusu ?? usuarioLogado?.id ?? 0);
+    const contatos = await this.contatoRepository.findProximasChamadas(dias, usuarioId);
     return contatos.map(c => this.mapToResponseDto(c));
   }
 
@@ -213,26 +216,14 @@ export class ContatoUseCases {
   }
 
   async atualizarSituacao(id: number, situacao: SituacaoContato): Promise<void> {
-    const contato = await this.contatoRepository.findById(id);
-    if (!contato) {
-      throw new NotFoundException(`Contato ${id} nao encontrado`);
-    }
     await this.contatoRepository.updateSituacao(id, situacao);
   }
 
   async marcarConcluido(id: number): Promise<void> {
-    const contato = await this.contatoRepository.findById(id);
-    if (!contato) {
-      throw new NotFoundException(`Contato ${id} nao encontrado`);
-    }
     await this.contatoRepository.marcarConcluido(id);
   }
 
   async marcarPendente(id: number): Promise<void> {
-    const contato = await this.contatoRepository.findById(id);
-    if (!contato) {
-      throw new NotFoundException(`Contato ${id} nao encontrado`);
-    }
     await this.contatoRepository.marcarPendente(id);
   }
 

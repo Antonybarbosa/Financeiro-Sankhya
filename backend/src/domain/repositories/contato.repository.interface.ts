@@ -34,8 +34,8 @@ export interface IContatoRepository {
   findByParceiro(parceiroId: number): Promise<Contato[]>;
   findByTipo(tipo: TipoContato): Promise<Contato[]>;
   findBySituacao(situacao: SituacaoContato): Promise<Contato[]>;
-  findPendentes(): Promise<Contato[]>;
-  findProximasChamadas(dias: number): Promise<Contato[]>;
+  findPendentes(codUsuarioLogado?: number): Promise<Contato[]>;
+  findProximasChamadas(dias: number, codUsuarioLogado?: number): Promise<Contato[]>;
   findPorPeriodo(dataInicio: Date, dataFim: Date): Promise<Contato[]>;
   findByNuFin(nuFin: number): Promise<Contato[]>;
   findAtendimentosHoje(codUsuarioLogado: number): Promise<AtendimentoHojeRow[]>;

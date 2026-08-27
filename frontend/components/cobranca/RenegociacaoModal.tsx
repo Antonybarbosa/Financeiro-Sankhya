@@ -137,7 +137,10 @@ export function RenegociacaoModal({ parceiroId, parceiroNome, open, onClose, onS
       setStep(2);
       toast.success('Simulação concluída', `${res.parcelas.length} parcelas calculadas com sucesso.`);
     } catch (e: any) {
-      const msg = e?.response?.data?.message || e?.message || 'Erro ao simular o parcelamento no Sankhya.';
+      let msg = e?.response?.data?.message || e?.message || 'Erro ao simular o parcelamento no Sankhya.';
+      if (msg.includes('timeout') || e?.code === 'ECONNABORTED') {
+        msg = 'O Sankhya ERP demorou para processar a simulação. O tempo limite foi estendido; tente novamente.';
+      }
       setErro(msg);
       toast.error('Erro na simulação', msg);
     }
@@ -163,9 +166,12 @@ export function RenegociacaoModal({ parceiroId, parceiroNome, open, onClose, onS
       setConfirmacao(res);
       toast.success('Renegociação concluída!', `Renegociação Nº ${res.nureneg || 'gerada'} registrada no Sankhya.`);
     } catch (e: any) {
-      const msg = e?.response?.data?.message || e?.message || 'Erro ao confirmar a renegociação.';
+      let msg = e?.response?.data?.message || e?.message || 'Erro ao confirmar a renegociação no Sankhya.';
+      if (msg.includes('timeout') || e?.code === 'ECONNABORTED') {
+        msg = 'O Sankhya ERP demorou para gravar a renegociação. Verifique se o parcelamento foi concluído antes de tentar novamente.';
+      }
       setErro(msg);
-      toast.error('Erro ao confirmar', msg);
+      toast.error('Erro na confirmação', msg);
     }
   };
 
@@ -355,41 +361,55 @@ export function RenegociacaoModal({ parceiroId, parceiroNome, open, onClose, onS
                     </p>
                   ) : (
                     <div className="max-h-44 space-y-1.5 overflow-y-auto rounded-xl border border-gray-200 p-2 bg-white">
-                      {titulosEmAberto.map((t) => (
-                        <label
-                          key={t.id}
-                          className={`flex cursor-pointer items-center justify-between rounded-lg p-2.5 transition-all ${
-                            selected.has(t.id)
-                              ? 'bg-indigo-50/90 border border-indigo-300 text-gray-900'
-                              : 'hover:bg-gray-50 border border-transparent text-gray-800'
-                          }`}
-                        >
-                          <div className="flex items-center gap-3">
-                            <input
-                              type="checkbox"
-                              checked={selected.has(t.id)}
-                              onChange={() => toggle(t.id)}
-                              className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
-                            />
-                            <div>
-                              <p className="text-xs font-bold text-gray-900">
-                                {t.numero ? `Título #${t.numero}` : `NUFIN ${t.id}`}
-                                {t.desdobramento && t.desdobramento !== '0' && (
-                                  <span className="ml-1 text-[11px] font-bold text-gray-600">
-                                    (Parc. {t.desdobramento})
+                      {titulosEmAberto.map((t) => {
+                        const isLate = t.isVencido;
+                        return (
+                          <label
+                            key={t.id}
+                            className={`flex cursor-pointer items-center justify-between rounded-xl p-3 transition-all ${
+                              selected.has(t.id)
+                                ? 'bg-indigo-50/90 border-2 border-indigo-500 text-gray-900 shadow-xs'
+                                : 'hover:bg-gray-50 border border-gray-200 text-gray-800'
+                            }`}
+                          >
+                            <div className="flex items-center gap-3">
+                              <input
+                                type="checkbox"
+                                checked={selected.has(t.id)}
+                                onChange={() => toggle(t.id)}
+                                className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+                              />
+                              <div>
+                                <div className="flex items-center gap-2">
+                                  <span className="text-xs font-extrabold text-gray-900 font-mono">
+                                    {t.numero ? `Título #${t.numero}` : `NUFIN ${t.id}`}
                                   </span>
-                                )}
-                              </p>
-                              <p className="text-xs font-semibold text-gray-700">
-                                Vencimento: {formatDate(t.dataVencimento)}
-                              </p>
+                                  {t.desdobramento && t.desdobramento !== '0' && (
+                                    <span className="rounded bg-gray-200 px-1.5 py-0.5 text-[10px] font-bold text-gray-700">
+                                      Parc. {t.desdobramento}
+                                    </span>
+                                  )}
+                                  <span
+                                    className={`rounded-full px-2 py-0.5 text-[10px] font-extrabold border ${
+                                      isLate
+                                        ? 'bg-red-100 text-red-800 border-red-300'
+                                        : 'bg-emerald-100 text-emerald-800 border-emerald-300'
+                                    }`}
+                                  >
+                                    {isLate ? `🚨 ${t.diasVencido}d atraso` : `⏳ Em dia`}
+                                  </span>
+                                </div>
+                                <p className="text-xs font-semibold text-gray-600 mt-0.5">
+                                  Vencimento: <span className="font-bold text-gray-900">{formatDate(t.dataVencimento)}</span>
+                                </p>
+                              </div>
                             </div>
-                          </div>
-                          <span className="text-xs font-black text-gray-900">
-                            {formatCurrency(t.valorEmAberto)}
-                          </span>
-                        </label>
-                      ))}
+                            <span className="text-sm font-extrabold text-indigo-950">
+                              {formatCurrency(t.valorEmAberto)}
+                            </span>
+                          </label>
+                        );
+                      })}
                     </div>
                   )}
                 </section>

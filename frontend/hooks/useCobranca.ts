@@ -1,6 +1,6 @@
 import { useQuery, useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { cobrancaApi } from '@/lib/api';
-import { CreateContatoPayload, FilaCobrancaParams } from '@/types/cobranca';
+import { CreateContatoPayload, FilaCobrancaParams, MetasPerformanceParams } from '@/types/cobranca';
 
 export function useKpis() {
   return useQuery({
@@ -94,10 +94,39 @@ export function useConcluirContato() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (id: number) => cobrancaApi.concluirContato(id),
-    onSuccess: () => {
+    onMutate: async (id: number) => {
+      await queryClient.cancelQueries({ queryKey: ['cobranca', 'atendimento', 'hoje'] });
+      const previousData = queryClient.getQueryData(['cobranca', 'atendimento', 'hoje']);
+
+      queryClient.setQueryData(['cobranca', 'atendimento', 'hoje'], (old: any) => {
+        if (!old || !old.items) return old;
+        const updatedItems = old.items.map((item: any) => {
+          if (item.nurel === id || item.ultimoContato?.id === id) {
+            return { ...item, pendente: false };
+          }
+          return item;
+        });
+        const resolvidos = updatedItems.filter((i: any) => !i.pendente).length;
+        const pendentes = updatedItems.filter((i: any) => i.pendente).length;
+        return {
+          ...old,
+          items: updatedItems,
+          resolvidos,
+          pendentes,
+        };
+      });
+
+      return { previousData };
+    },
+    onError: (_err, _id, context) => {
+      if (context?.previousData) {
+        queryClient.setQueryData(['cobranca', 'atendimento', 'hoje'], context.previousData);
+      }
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ['cobranca', 'atendimento', 'hoje'] });
       queryClient.invalidateQueries({ queryKey: ['cobranca', 'contatos'] });
       queryClient.invalidateQueries({ queryKey: ['cobranca', 'kpis'] });
-      queryClient.invalidateQueries({ queryKey: ['cobranca', 'atendimento', 'hoje'] });
     },
   });
 }
@@ -106,10 +135,47 @@ export function useMarcarPendenteContato() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (id: number) => cobrancaApi.marcarPendenteContato(id),
-    onSuccess: () => {
+    onMutate: async (id: number) => {
+      await queryClient.cancelQueries({ queryKey: ['cobranca', 'atendimento', 'hoje'] });
+      const previousData = queryClient.getQueryData(['cobranca', 'atendimento', 'hoje']);
+
+      queryClient.setQueryData(['cobranca', 'atendimento', 'hoje'], (old: any) => {
+        if (!old || !old.items) return old;
+        const updatedItems = old.items.map((item: any) => {
+          if (item.nurel === id || item.ultimoContato?.id === id) {
+            return { ...item, pendente: true };
+          }
+          return item;
+        });
+        const resolvidos = updatedItems.filter((i: any) => !i.pendente).length;
+        const pendentes = updatedItems.filter((i: any) => i.pendente).length;
+        return {
+          ...old,
+          items: updatedItems,
+          resolvidos,
+          pendentes,
+        };
+      });
+
+      return { previousData };
+    },
+    onError: (_err, _id, context) => {
+      if (context?.previousData) {
+        queryClient.setQueryData(['cobranca', 'atendimento', 'hoje'], context.previousData);
+      }
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ['cobranca', 'atendimento', 'hoje'] });
       queryClient.invalidateQueries({ queryKey: ['cobranca', 'contatos'] });
       queryClient.invalidateQueries({ queryKey: ['cobranca', 'kpis'] });
-      queryClient.invalidateQueries({ queryKey: ['cobranca', 'atendimento', 'hoje'] });
     },
+  });
+}
+
+export function useMetasPerformance(params: MetasPerformanceParams = {}) {
+  return useQuery({
+    queryKey: ['cobranca', 'metas-performance', params.mes, params.ano, params.codemp],
+    queryFn: () => cobrancaApi.getMetasPerformance(params),
+    refetchInterval: 120000,
   });
 }

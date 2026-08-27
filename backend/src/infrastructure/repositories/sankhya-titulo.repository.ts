@@ -9,6 +9,7 @@ import {
   BoletoDados,
   ResumoFinanceiroParceiro,
   ResumoFinanceiroAgregado,
+  MetasPerformanceRawRow,
 } from '../../domain/repositories/titulo.repository.interface';
 import { Titulo, StatusTitulo } from '../../domain/entities/titulo.entity';
 
@@ -486,17 +487,19 @@ export class SankhyaTituloRepository implements ITituloRepository {
     };
   }
 
-  private async aplicarOverlayPendente(items: FilaItem[]): Promise<void> {
+  private async aplicarOverlayPendente(items: FilaItem[], codUsuarioLogado?: number): Promise<void> {
     if (items.length === 0) return;
     const parceiroIds = items.map(i => i.parceiroId);
     const inClause = chunkedIn('TEL.CODPARC', parceiroIds);
+    const usuarioId = Math.floor(codUsuarioLogado || 0);
+    const filtroUsuario = usuarioId > 0 ? `AND (TEL.CODATENDENTE = ${usuarioId} OR TEL.CODUSU = ${usuarioId})` : '';
     try {
       const rows = await this.sankhyaGateway.executeQuery(`
         SELECT CODPARC, PENDENTE FROM (
           SELECT TEL.CODPARC, TEL.PENDENTE,
                  ROW_NUMBER() OVER (PARTITION BY TEL.CODPARC ORDER BY TEL.DHCHAMADA DESC) AS RN
           FROM TGFTEL TEL
-          WHERE TRUNC(TEL.DHCHAMADA) = TRUNC(SYSDATE)
+          WHERE TRUNC(TEL.DHCHAMADA) = TRUNC(SYSDATE) ${filtroUsuario}
             AND ${inClause}
         )
         WHERE RN = 1
@@ -511,6 +514,112 @@ export class SankhyaTituloRepository implements ITituloRepository {
       }
     } catch {
       // Overlay é best-effort: se TGFTEL falhar, mantém null
+    }
+  }
+
+  async findMetasPerformance(dtini: string, dtfim: string, codemp?: number): Promise<MetasPerformanceRawRow[]> {
+    const codempFilter = codemp ? `CODEMP = ${codemp}` : '1=1';
+    const codempFinFilter = codemp
+      ? `fin.codemp IN (SELECT EMP.CODEMP FROM TSIEMP EMP WHERE EMP.CODEMPMATRIZ = ${codemp})`
+      : '1=1';
+
+    const sql = `
+      SELECT REGRA, RECEBIDO, META, RECEBIDO*(PERC_COM/100) AS PREMIO, PERC_COM FROM
+      (SELECT 
+        NOME AS REGRA, SUM(valor) AS RECEBIDO, 
+        NVL(
+          (SELECT SUM(DECODE( NOME,' 1  A 5 ', META1, ' 6  A 15 ', META2, ' 16  A 30 ', META3, ' 31  A 90 ', META4,' 91 A 365 ',META5, 'ACIMA DE 365', META6, 'RENEGOCIADOS', META7)) 
+           FROM AD_METASFIN 
+           WHERE mes between extract(month from TO_DATE('${dtini}', 'DD/MM/YYYY')) and extract(month from TO_DATE('${dtfim}', 'DD/MM/YYYY'))
+             and ano = to_char(to_date('${dtfim}','DD/MM/YYYY'),'YYYY')
+             AND CODEMP NOT IN (3, 4)
+             AND ${codempFilter}
+          ), 0) AS META,
+        ORDEM,
+        NVL(
+          (SELECT (DECODE( NOME,' 1  A 5 ', PERC1, ' 6  A 15 ', PERC2, ' 16  A 30 ', PERC3, ' 31  A 90 ', PERC4,' 91 A 365 ',PERC5, 'ACIMA DE 365', PERC6, 'RENEGOCIADOS', PERC7)) 
+           FROM AD_METASFIN 
+           WHERE mes between extract(month from TO_DATE('${dtini}', 'DD/MM/YYYY')) and extract(month from TO_DATE('${dtfim}', 'DD/MM/YYYY'))
+             and ano = to_char(to_date('${dtfim}','DD/MM/YYYY'),'YYYY')
+             AND CODEMP NOT IN (3, 4)
+             AND ${codempFilter} AND ROWNUM = 1
+          ), 0) AS PERC_COM
+       FROM 
+       (
+        SELECT 
+            PAR.CODPARC,PAR.RAZAOSOCIAL,PAR.DTCAD,
+            trunc(DHBAIXA-dtvenc) as dias,
+            dtvenc, DHBAIXA,
+            fin.VLRBAIXA as valor, 
+            NUFIN AS TITULOS, 
+            CASE WHEN trunc(DHBAIXA-dtvenc) BETWEEN 1 AND 5 THEN ' 1  A 5 '
+                WHEN trunc(DHBAIXA-dtvenc) BETWEEN 6 AND 15 THEN ' 6  A 15 '
+                WHEN trunc(DHBAIXA-dtvenc) BETWEEN 16 AND 30 THEN ' 16  A 30 '
+                WHEN trunc(DHBAIXA-dtvenc) BETWEEN 31 AND 90 THEN ' 31  A 90 '		
+                WHEN trunc(DHBAIXA-dtvenc) BETWEEN 91 AND 365 THEN ' 91 A 365 ' 
+                ELSE 'ACIMA DE 365' END AS NOME,
+            CASE WHEN trunc(DHBAIXA-dtvenc) BETWEEN 1 AND 5 THEN 1
+                WHEN trunc(DHBAIXA-dtvenc) BETWEEN 6 AND 15 THEN 2
+                WHEN trunc(DHBAIXA-dtvenc) BETWEEN 16 AND 30 THEN 3
+                WHEN trunc(DHBAIXA-dtvenc) BETWEEN 31 AND 90 THEN 4	
+                WHEN trunc(DHBAIXA-dtvenc) BETWEEN 91 AND 365 THEN 5
+                ELSE 6 END AS ORDEM, VLRJURO    
+        FROM TGFFIN FIN, TGFPAR PAR 
+        WHERE PAR.CODPARC = FIN.CODPARC
+          AND FIN.DHBAIXA between TO_DATE('${dtini}', 'DD/MM/YYYY') and TO_DATE('${dtfim}', 'DD/MM/YYYY') + 0.99999
+          AND FIN.DHBAIXA > FIN.DTVENC 
+          AND FIN.RECDESP = 1 
+          AND codtiptit NOT IN (11 ,20, 10,29,30,31,0)
+          AND PAR.CLIENTE= 'S'
+          AND PAR.ATIVO = 'S'
+          AND FIN.PROVISAO = 'N'
+          AND FIN.CODEMP NOT IN (3, 4)
+          AND ${codempFinFilter}
+          AND FIN.CODNAT NOT IN (10202002,10202005,10202007, 10401001, 10401002, 10401003, 20401001, 20401002, 20401003, 20401004, 20401005)
+          AND FIN.CODPARC NOT IN (833,2507,36133, 792,791, 36081,36923, 833, 2507, 34412, 39417, 2814)
+
+        UNION ALL
+
+        (SELECT 
+            PAR.CODPARC,PAR.RAZAOSOCIAL,PAR.DTCAD,
+            trunc(DHBAIXA-dtvenc) as dias,
+            dtvenc, DHBAIXA,
+            fin.VLRBAIXA as valor, 
+            NUFIN AS TITULOS, 
+            'RENEGOCIADOS' AS NOME,
+            7 AS ORDEM,
+            VLRJURO
+        FROM TGFFIN FIN, TGFPAR PAR 
+        WHERE PAR.CODPARC = FIN.CODPARC
+          AND FIN.DHBAIXA between TO_DATE('${dtini}', 'DD/MM/YYYY') and TO_DATE('${dtfim}', 'DD/MM/YYYY') + 0.99999
+          AND NVL(NURENEG,0) <> 0
+          AND FIN.RECDESP = 1 
+          AND codtiptit NOT IN (11 ,20, 10,29,30,31,0)
+          AND PAR.CLIENTE= 'S'
+          AND PAR.ATIVO = 'S'
+          AND FIN.PROVISAO = 'N'
+          AND NVL(VLRJURO,0) <> 0 
+          AND FIN.CODEMP NOT IN (3, 4)
+          AND ${codempFinFilter}
+          AND FIN.CODNAT NOT IN (10202002,10202005,10202007, 10401001, 10401002, 10401003, 20401001, 20401002, 20401003, 20401004, 20401005)
+          AND FIN.CODPARC NOT IN (833,2507,36133, 792,791, 36081,36923, 833, 2507, 34412, 39417, 2814))
+       )
+       GROUP BY NOME, ORDEM)
+      ORDER BY ORDEM
+    `;
+
+    try {
+      const rows = await this.sankhyaGateway.executeQuery(sql);
+      return rows.map((r: any) => ({
+        regra: (r.REGRA || '').trim(),
+        recebido: parseFloat(r.RECEBIDO) || 0,
+        meta: parseFloat(r.META) || 0,
+        premio: parseFloat(r.PREMIO) || 0,
+        percCom: parseFloat(r.PERC_COM) || 0,
+      }));
+    } catch (error) {
+      console.error('Erro ao executar query de MetasPerformance:', error);
+      return [];
     }
   }
 

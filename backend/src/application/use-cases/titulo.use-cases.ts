@@ -5,7 +5,13 @@ import {
   FilaCobrancaOptions,
 } from '../../domain/repositories/titulo.repository.interface';
 import { Titulo, StatusTitulo } from '../../domain/entities/titulo.entity';
-import { TituloResponseDto, FiltroTitulosDto, DashboardKpisDto, BoletoResponseDto } from '../dto/cobranca.dto';
+import {
+  TituloResponseDto,
+  FiltroTitulosDto,
+  DashboardKpisDto,
+  BoletoResponseDto,
+  MetasPerformanceResponseDto,
+} from '../dto/cobranca.dto';
 import { ContatoUseCases } from './contato.use-cases';
 
 @Injectable()
@@ -21,6 +27,54 @@ export class TituloUseCases {
       throw new NotFoundException(`Titulo ${id} nao encontrado`);
     }
     return this.mapToResponseDto(titulo);
+  }
+
+  async obterMetasPerformance(
+    mesInput?: number,
+    anoInput?: number,
+    codemp?: number,
+  ): Promise<MetasPerformanceResponseDto> {
+    const now = new Date();
+    const mes = mesInput && mesInput >= 1 && mesInput <= 12 ? mesInput : now.getMonth() + 1;
+    const ano = anoInput && anoInput >= 2000 ? anoInput : now.getFullYear();
+
+    const dtini = `01/${String(mes).padStart(2, '0')}/${ano}`;
+    const lastDay = new Date(ano, mes, 0).getDate();
+    const dtfim = `${String(lastDay).padStart(2, '0')}/${String(mes).padStart(2, '0')}/${ano}`;
+
+    const rawRows = await this.tituloRepository.findMetasPerformance(dtini, dtfim, codemp);
+
+    const items = rawRows.map(r => {
+      const percAtingido = r.meta > 0 ? (r.recebido / r.meta) * 100 : 0;
+      return {
+        regra: r.regra,
+        recebido: r.recebido,
+        meta: r.meta,
+        percCom: r.percCom,
+        premio: r.premio,
+        percAtingido: parseFloat(percAtingido.toFixed(2)),
+      };
+    });
+
+    const totalRecebido = items.reduce((s, i) => s + i.recebido, 0);
+    const totalMeta = items.reduce((s, i) => s + i.meta, 0);
+    const totalPremio = items.reduce((s, i) => s + i.premio, 0);
+    const percAtingidoGlobal = totalMeta > 0 ? (totalRecebido / totalMeta) * 100 : 0;
+
+    return {
+      items,
+      totais: {
+        totalRecebido,
+        totalMeta,
+        totalPremio,
+        percAtingidoGlobal: parseFloat(percAtingidoGlobal.toFixed(2)),
+      },
+      mes,
+      ano,
+      codemp: codemp || null,
+      dtini,
+      dtfim,
+    };
   }
 
   async buscarBoleto(id: number): Promise<BoletoResponseDto> {

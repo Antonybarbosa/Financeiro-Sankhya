@@ -103,6 +103,14 @@ export interface BoletoDados {
   };
 }
 
+export interface MetasPerformanceRawRow {
+  regra: string;
+  recebido: number;
+  meta: number;
+  premio: number;
+  percCom: number;
+}
+
 export interface ITituloRepository {
   findById(id: number): Promise<Titulo | null>;
   findBoleto(id: number): Promise<BoletoDados | null>;
@@ -116,6 +124,7 @@ export interface ITituloRepository {
   findFilaCobranca(opts?: FilaCobrancaOptions): Promise<FilaCobrancaResult>;
   findResumoFinanceiroPorParceiros(parceiroIds: number[]): Promise<ResumoFinanceiroParceiro[]>;
   findResumoFinanceiroAgregado(parceiroIds: number[]): Promise<ResumoFinanceiroAgregado>;
+  findMetasPerformance(dtini: string, dtfim: string, codemp?: number): Promise<MetasPerformanceRawRow[]>;
   save(titulo: Titulo): Promise<Titulo>;
   updateStatus(id: number, status: StatusTitulo): Promise<void>;
   countPorStatus(): Promise<{ status: StatusTitulo; total: number; valor: number }[]>;

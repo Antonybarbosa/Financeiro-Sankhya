@@ -1,7 +1,7 @@
 'use client';
 
-import { FilaCobranca } from '@/components/cobranca/FilaCobranca';
+import { DashboardView } from '@/components/cobranca/DashboardView';
 
 export default function CobrancaPage() {
-  return <FilaCobranca />;
+  return <DashboardView />;
 }

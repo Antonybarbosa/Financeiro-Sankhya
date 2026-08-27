@@ -240,3 +240,34 @@ export interface Boleto {
   sacado: BoletoSacado;
   cedente: BoletoCedente;
 }
+
+export interface MetasPerformanceItem {
+  regra: string;
+  recebido: number;
+  meta: number;
+  percCom: number;
+  premio: number;
+  percAtingido: number;
+}
+
+export interface MetasPerformanceResponse {
+  items: MetasPerformanceItem[];
+  totais: {
+    totalRecebido: number;
+    totalMeta: number;
+    totalPremio: number;
+    percAtingidoGlobal: number;
+  };
+  mes: number;
+  ano: number;
+  codemp?: number | null;
+  dtini: string;
+  dtfim: string;
+}
+
+export interface MetasPerformanceParams {
+  mes?: number;
+  ano?: number;
+  codemp?: number;
+}
+

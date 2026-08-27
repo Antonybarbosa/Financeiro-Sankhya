@@ -26,9 +26,9 @@ import {
   Mail,
   ChevronDown,
   Building2,
-  Calendar,
 } from 'lucide-react';
 import { Dialog, DialogCloseButton } from '@/components/ui/dialog';
+import { WhatsAppSendModal } from '../WhatsAppSendModal';
 
 const PAGE_SIZE = 20;
 
@@ -72,6 +72,11 @@ export function KanbanView() {
   const concluirContato = useConcluirContato();
   const marcarPendenteContato = useMarcarPendenteContato();
   const [selected, setSelected] = useState<AtendimentoHojeItem | null>(null);
+  const [whatsAppTarget, setWhatsAppTarget] = useState<{
+    parceiroId: number;
+    parceiroNome: string;
+    telefone?: string | null;
+  } | null>(null);
   const [emAcao, setEmAcao] = useState<Set<number>>(new Set());
   const [limitPorColuna, setLimitPorColuna] = useState<Record<string, number>>({
     pendentes: PAGE_SIZE,
@@ -210,10 +215,6 @@ export function KanbanView() {
                                       "{item.ultimoContato.comentarios}"
                                     </p>
                                   )}
-                                  <p className="mt-1 flex items-center gap-1 text-[10px] text-gray-400 font-medium">
-                                    <Calendar className="h-2.5 w-2.5" />
-                                    Último: {formatDateTime(item.ultimoContato?.dataChamada)}
-                                  </p>
                                 </div>
                                 {item.totalContatos > 1 && (
                                   <span className="shrink-0 rounded-md bg-blue-50 px-1.5 py-0.5 text-[10px] font-bold text-blue-700 border border-blue-100">
@@ -254,7 +255,6 @@ export function KanbanView() {
                                 <div className="mt-2 flex flex-wrap items-center gap-3 text-[11px] text-gray-600 font-medium pt-1">
                                   {item.telefone && (
                                     <span className="inline-flex items-center gap-1 text-gray-700">
-                                      <Phone className="h-3 w-3 text-blue-600" />
                                       {formatPhone(item.telefone)}
                                     </span>
                                   )}
@@ -314,24 +314,21 @@ export function KanbanView() {
                               )}
 
                               {item.telefone && (
-                                <>
-                                  <a
-                                    href={formatWhatsAppLink(item.telefone)}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="inline-flex items-center justify-center rounded-lg bg-emerald-600 px-2.5 py-1.5 text-xs font-medium text-white shadow-xs transition-colors hover:bg-emerald-700"
-                                    title="WhatsApp"
-                                  >
-                                    <MessageCircle className="h-3.5 w-3.5" />
-                                  </a>
-                                  <a
-                                    href={formatTelLink(item.telefone)}
-                                    className="inline-flex items-center justify-center rounded-lg bg-blue-600 px-2.5 py-1.5 text-xs font-medium text-white shadow-xs transition-colors hover:bg-blue-700"
-                                    title={formatPhone(item.telefone)}
-                                  >
-                                    <Phone className="h-3.5 w-3.5" />
-                                  </a>
-                                </>
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setWhatsAppTarget({
+                                      parceiroId: item.parceiroId,
+                                      parceiroNome: item.parceiroNome || '',
+                                      telefone: item.telefone,
+                                    });
+                                  }}
+                                  className="inline-flex items-center justify-center rounded-lg bg-emerald-600 px-2.5 py-1.5 text-xs font-medium text-white shadow-xs transition-colors hover:bg-emerald-700 cursor-pointer"
+                                  title="Enviar WhatsApp Personalizado"
+                                >
+                                  <MessageCircle className="h-3.5 w-3.5" />
+                                </button>
                               )}
                             </div>
                           </div>
@@ -375,6 +372,16 @@ export function KanbanView() {
           />
         )}
       </Dialog>
+
+      {whatsAppTarget && (
+        <WhatsAppSendModal
+          open={!!whatsAppTarget}
+          onClose={() => setWhatsAppTarget(null)}
+          parceiroId={whatsAppTarget.parceiroId}
+          parceiroNome={whatsAppTarget.parceiroNome}
+          telefone={whatsAppTarget.telefone}
+        />
+      )}
     </>
   );
 }

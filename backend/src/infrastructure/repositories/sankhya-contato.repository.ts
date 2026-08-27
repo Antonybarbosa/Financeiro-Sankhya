@@ -80,22 +80,26 @@ export class SankhyaContatoRepository implements IContatoRepository {
     return result.map(c => this.mapQueryToContato(c));
   }
 
-  async findPendentes(): Promise<Contato[]> {
+  async findPendentes(codUsuarioLogado?: number): Promise<Contato[]> {
+    const usuarioId = Math.floor(codUsuarioLogado || 0);
+    const filtroUsuario = usuarioId > 0 ? `AND (TEL.CODATENDENTE = ${usuarioId} OR TEL.CODUSU = ${usuarioId})` : '';
     const result = await this.sankhyaGateway.executeQuery(`
       ${CONTATO_SELECT}
-      WHERE TEL.PENDENTE = 'S'
+      WHERE TEL.PENDENTE = 'S' ${filtroUsuario}
       ORDER BY TEL.DHCHAMADA DESC
     `);
 
     return result.map(c => this.mapQueryToContato(c));
   }
 
-  async findProximasChamadas(dias: number): Promise<Contato[]> {
+  async findProximasChamadas(dias: number, codUsuarioLogado?: number): Promise<Contato[]> {
+    const usuarioId = Math.floor(codUsuarioLogado || 0);
+    const filtroUsuario = usuarioId > 0 ? `AND (TEL.CODATENDENTE = ${usuarioId} OR TEL.CODUSU = ${usuarioId})` : '';
     const result = await this.sankhyaGateway.executeQuery(`
       ${CONTATO_SELECT}
       WHERE TEL.DHPROXCHAM IS NOT NULL
         AND TEL.DHPROXCHAM <= TRUNC(SYSDATE) + ${dias}
-        AND TEL.PENDENTE = 'S'
+        AND TEL.PENDENTE = 'S' ${filtroUsuario}
       ORDER BY TEL.DHPROXCHAM ASC
     `);
 
@@ -130,7 +134,7 @@ export class SankhyaContatoRepository implements IContatoRepository {
 
   async findAtendimentosHoje(codUsuarioLogado: number): Promise<AtendimentoHojeRow[]> {
     const usuarioId = Math.floor(codUsuarioLogado || 0);
-    const filtroUsuario = usuarioId > 0 ? `AND TEL.CODATENDENTE = ${usuarioId}` : '';
+    const filtroUsuario = usuarioId > 0 ? `AND (TEL.CODATENDENTE = ${usuarioId} OR TEL.CODUSU = ${usuarioId})` : '';
     const rows = await this.sankhyaGateway.executeQuery(
       `
       SELECT TEL.NUREL, TEL.CODPARC, PAR.NOMEPARC, PAR.TELEFONE, PAR.EMAIL,

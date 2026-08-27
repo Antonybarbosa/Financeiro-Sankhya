@@ -28,6 +28,7 @@ interface ParceiroCardProps {
   variant?: 'list' | 'kanban';
   onConcluir?: (nurel: number) => void;
   onReabrir?: (nurel: number) => void;
+  onWhatsAppClick?: (item: FilaItem | AtendimentoHojeItem) => void;
 }
 
 export function ParceiroCard({
@@ -37,6 +38,7 @@ export function ParceiroCard({
   variant = 'list',
   onConcluir,
   onReabrir,
+  onWhatsAppClick,
 }: ParceiroCardProps) {
   const [emAcaoLocal, setEmAcaoLocal] = useState(false);
 
@@ -81,9 +83,14 @@ export function ParceiroCard({
       {/* Top row: name + priority */}
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0 flex-1">
-          <p className="truncate text-sm font-semibold text-gray-900">
-            {item.parceiroNome}
+          <p className="truncate text-sm font-extrabold text-gray-900">
+            {item.razaoSocial || item.parceiroNome}
           </p>
+          {(item.nomeFantasia || (item.razaoSocial && item.razaoSocial !== item.parceiroNome)) && (
+            <p className="truncate text-xs font-medium text-gray-500">
+              {item.nomeFantasia || item.parceiroNome}
+            </p>
+          )}
           {'pendente' in item && pendenteAttr !== null && pendenteAttr !== undefined && (
             <Badge variant={pendenteAttr ? 'warning' : 'success'} className="mt-1">
               {pendenteAttr ? 'Pendente' : 'Resolvido'}
@@ -116,7 +123,6 @@ export function ParceiroCard({
       <div className="mt-2 flex items-center gap-2 border-t border-gray-100 pt-2">
         {item.telefone ? (
           <span className="inline-flex items-center gap-1 text-xs text-gray-500">
-            <Phone className="h-3 w-3" />
             Telefone
           </span>
         ) : null}
@@ -170,24 +176,21 @@ export function ParceiroCard({
 
           {item.telefone && (
             <>
-              <a
-                href={formatWhatsAppLink(item.telefone)}
-                target="_blank"
-                rel="noopener noreferrer"
-                onClick={(e) => e.stopPropagation()}
-                className="inline-flex items-center justify-center rounded-md bg-green-600 px-2.5 py-1.5 text-xs font-medium text-white hover:bg-green-700"
-                title="WhatsApp"
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (onWhatsAppClick) {
+                    onWhatsAppClick(item);
+                  } else {
+                    window.open(formatWhatsAppLink(item.telefone), '_blank');
+                  }
+                }}
+                className="inline-flex items-center justify-center rounded-md bg-green-600 px-2.5 py-1.5 text-xs font-medium text-white hover:bg-green-700 cursor-pointer"
+                title="Enviar Mensagem via WhatsApp"
               >
                 <MessageCircle className="h-3 w-3" />
-              </a>
-              <a
-                href={formatTelLink(item.telefone)}
-                onClick={(e) => e.stopPropagation()}
-                className="inline-flex items-center justify-center rounded-md bg-blue-600 px-2.5 py-1.5 text-xs font-medium text-white hover:bg-blue-700"
-                title={formatPhone(item.telefone)}
-              >
-                <Phone className="h-3 w-3" />
-              </a>
+              </button>
             </>
           )}
         </div>

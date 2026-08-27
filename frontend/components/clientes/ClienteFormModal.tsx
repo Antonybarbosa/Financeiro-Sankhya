@@ -56,6 +56,10 @@ import {
   Zap,
   SlidersHorizontal,
   ShieldCheck,
+  ChevronDown,
+  ChevronRight,
+  Maximize2,
+  Minimize2,
 } from 'lucide-react';
 import { formatCnpjCpf, formatPhone, formatCep, formatCurrencyInput, parseCurrencyInput } from '@/lib/utils';
 import { EnderecoCombobox, OpcaoEndereco } from './EnderecoCombobox';
@@ -65,19 +69,30 @@ interface FormLabelProps {
   label: string;
   tooltip?: string;
   obrigatorio?: boolean;
+  modificado?: boolean;
 }
 
-function FormLabel({ label, tooltip, obrigatorio }: FormLabelProps) {
+function FormLabel({ label, tooltip, obrigatorio, modificado }: FormLabelProps) {
   return (
     <div className="flex items-center justify-between mb-1">
       <span className="block text-xs font-semibold text-gray-700">
         {label} {obrigatorio && <span className="text-red-500">*</span>}
       </span>
-      {tooltip && (
-        <span title={tooltip} className="cursor-help text-gray-400 hover:text-blue-600 transition-colors flex items-center gap-0.5 text-[11px] font-mono">
-          <Info className="h-3.5 w-3.5" />
-        </span>
-      )}
+      <div className="flex items-center gap-1.5">
+        {modificado && (
+          <span className="rounded bg-amber-100 border border-amber-300 px-1.5 py-0.2 text-[9px] font-extrabold text-amber-900 shadow-2xs">
+            🔸 alterado
+          </span>
+        )}
+        {tooltip && (
+          <span className="group relative cursor-help">
+            <Info className="h-3.5 w-3.5 text-gray-400 hover:text-indigo-600 transition-colors" />
+            <span className="pointer-events-none absolute right-0 top-6 z-50 hidden w-64 rounded-md bg-gray-900 p-2 text-[11px] font-medium text-white shadow-lg group-hover:block whitespace-normal leading-tight">
+              {tooltip}
+            </span>
+          </span>
+        )}
+      </div>
     </div>
   );
 }
@@ -99,6 +114,34 @@ export function ClienteFormModal({ isOpen, onClose, cliente }: ClienteFormModalP
   const [tab, setTab] = useState<'geral' | 'contato' | 'endereco' | 'empresas' | 'financeiro' | 'fiscal' | 'customizados' | 'anexos'>('geral');
   const [subTabEndereco, setSubTabEndereco] = useState<'principal' | 'entrega'>('principal');
   const [modoFormulario, setModoFormulario] = useState<'rapido' | 'completo'>('completo');
+
+  const [accordionsOpen, setAccordionsOpen] = useState<Record<string, boolean>>({
+    geral: true,
+    contato: true,
+    endereco: true,
+    financeiro: true,
+    fiscal: false,
+    empresas: false,
+    customizados: false,
+    anexos: true,
+  });
+
+  const toggleAccordion = (key: string) => {
+    setAccordionsOpen((prev) => ({ ...prev, [key]: !prev[key] }));
+  };
+
+  const setAllAccordions = (openState: boolean) => {
+    setAccordionsOpen({
+      geral: openState,
+      contato: openState,
+      endereco: openState,
+      financeiro: openState,
+      fiscal: openState,
+      empresas: openState,
+      customizados: openState,
+      anexos: openState,
+    });
+  };
 
   useEffect(() => {
     if (isOpen) {
@@ -361,10 +404,10 @@ export function ClienteFormModal({ isOpen, onClose, cliente }: ClienteFormModalP
   const [isBuscandoCepMain, setIsBuscandoCepMain] = useState(false);
   const [isBuscandoCepEntrega, setIsBuscandoCepEntrega] = useState(false);
 
-  const [modoVisualizacao, setModoVisualizacao] = useState(isEditing);
+  const [showConfirmClose, setShowConfirmClose] = useState(false);
 
-  const isDirty = useMemo(() => {
-    if (!isEditing || !cliente) return true;
+  const modifiedMap = useMemo<Record<string, boolean>>(() => {
+    if (!isEditing || !cliente) return {} as Record<string, boolean>;
 
     const initNome = cliente.nomeParc || '';
     const initRazao = cliente.razaoSocial || '';
@@ -401,88 +444,102 @@ export function ClienteFormModal({ isOpen, onClose, cliente }: ClienteFormModalP
     const initTipServCom = cliente.tipoClienteServCom || '';
     const initTel = formatPhone(cliente.telefone || '');
     const initEmail = cliente.email || '';
-    const initNum = cliente.endereco?.numero || '';
-    const initCompl = cliente.endereco?.complemento || '';
-    const initCep = formatCep(cliente.endereco?.cep || '');
-    const initCid = cliente.endereco?.codCid || 0;
-    const initBai = cliente.endereco?.codBai || 0;
-    const initEnd = cliente.endereco?.codEnd || 0;
-    const initLograTexto = cliente.endereco?.logradouro || '';
-    const initBaiTexto = cliente.endereco?.bairro || '';
-    const initCidTexto = cliente.endereco?.cidade || '';
+    const end = cliente.endereco;
+    const ufSigla = end?.uf && typeof end.uf === 'string' ? end.uf : undefined;
+    const temCidade = !!end?.codCid && end.codCid > 0 && !!end?.cidade;
+    const temBairro = !!end?.codBai && end.codBai > 0 && !!end?.bairro;
+    const temLogra = !!end?.codEnd && end.codEnd > 0 && !!end?.logradouro;
 
-    const initCepEntrega = formatCep(cliente.enderecoEntrega?.cep || '');
-    const initNumEntrega = cliente.enderecoEntrega?.numero || '';
-    const initComplEntrega = cliente.enderecoEntrega?.complemento || '';
-    const initCidEntrega = cliente.enderecoEntrega?.codCid || 0;
-    const initBaiEntrega = cliente.enderecoEntrega?.codBai || 0;
-    const initEndEntrega = cliente.enderecoEntrega?.codEnd || 0;
-    const initLograEntregaTexto = cliente.enderecoEntrega?.logradouro || '';
-    const initBaiEntregaTexto = cliente.enderecoEntrega?.bairro || '';
-    const initCidEntregaTexto = cliente.enderecoEntrega?.cidade || '';
+    const initCid = temCidade ? end!.codCid! : 0;
+    const initBai = temBairro ? end!.codBai! : 0;
+    const initEnd = temLogra ? end!.codEnd! : 0;
+
+    const initCidTexto = temCidade ? `${end!.cidade!}${ufSigla ? ` (${ufSigla})` : ''}` : '';
+    const initBaiTexto = temBairro ? end!.bairro! : '';
+    const initLograTexto = temLogra ? end!.logradouro! : '';
+    const initNum = end?.numero || '';
+    const initCompl = end?.complemento || '';
+    const initCep = formatCep(end?.cep || '');
+
+    const entE = cliente.enderecoEntrega;
+    const temEntregaSeparada = !!(entE && ((entE.codEnd && entE.codEnd > 0) || entE.logradouro || entE.cidade));
+    const ufEnt = entE?.uf && typeof entE.uf === 'string' ? entE.uf : undefined;
+
+    const initNumEntrega = temEntregaSeparada ? entE?.numero || '' : '';
+    const initComplEntrega = temEntregaSeparada ? entE?.complemento || '' : '';
+    const initCepEntrega = temEntregaSeparada ? formatCep(entE?.cep || '') : '';
+
+    const initCidEntrega = temEntregaSeparada && entE?.codCid && entE.codCid > 0 && entE?.cidade ? entE.codCid : 0;
+    const initBaiEntrega = temEntregaSeparada && entE?.codBai && entE.codBai > 0 && entE?.bairro ? entE.codBai : 0;
+    const initEndEntrega = temEntregaSeparada && entE?.codEnd && entE.codEnd > 0 && entE?.logradouro ? entE.codEnd : 0;
+
+    const initCidEntregaTexto = initCidEntrega > 0 ? `${entE!.cidade!}${ufEnt ? ` (${ufEnt})` : ''}` : '';
+    const initBaiEntregaTexto = initBaiEntrega > 0 ? entE!.bairro! : '';
+    const initLograEntregaTexto = initEndEntrega > 0 ? entE!.logradouro! : '';
+
     const initLat = cliente.latitude || '';
     const initLong = cliente.longitude || '';
     const initLatEntrega = cliente.latitudeEntrega || '';
     const initLongEntrega = cliente.longitudeEntrega || '';
 
-    return (
-      nomeParc.trim() !== initNome.trim() ||
-      razaoSocial.trim() !== initRazao.trim() ||
-      tipoPessoa !== initTipo ||
-      situacao !== initSituacao ||
-      cnpjCpf.trim() !== initCnpjCpf.trim() ||
-      inscricaoEstadual.trim() !== initIe.trim() ||
-      prazoPag.trim() !== initPrazo.trim() ||
-      limiteCredito.trim() !== initLimite.trim() ||
-      observacoes.trim() !== initObs.trim() ||
-      limiteCreditoMensal.trim() !== initLimiteMensal.trim() ||
-      qtdMaxTitVencidos.trim() !== initQtdTit.trim() ||
-      codTab.trim() !== initCodTab.trim() ||
-      codVend.trim() !== initCodVend.trim() ||
-      codBco.trim() !== initCodBco.trim() ||
-      descBonif.trim() !== initDescBonif.trim() ||
-      descFin.trim() !== initDescFin.trim() ||
-      inscricaoMunicipal.trim() !== initIm.trim() ||
-      classificacaoIcms.trim() !== initClassIcms.trim() ||
-      retemIss !== initRetIss ||
-      retemInss !== initRetInss ||
-      retemPis !== initRetPis ||
-      retemCofins !== initRetCofins ||
-      retemCsl !== initRetCsl ||
-      adCredCli.trim() !== initAdCred.trim() ||
-      adLimitePar.trim() !== initAdLim.trim() ||
-      adLocalCad.trim() !== initAdLoc.trim() ||
-      adEndCompleto.trim() !== initAdEndComp.trim() ||
-      adCodBcoBol.trim() !== initAdBcoBol.trim() ||
-      simples !== initSimples ||
-      perfilEconect !== initPerfilEconect ||
-      tipoFatur !== initTipoFatur ||
-      regimeEspTribIss !== initRegimeIss ||
-      telefone.trim() !== initTel.trim() ||
-      email.trim() !== initEmail.trim() ||
-      numero.trim() !== initNum.trim() ||
-      complemento.trim() !== initCompl.trim() ||
-      cep.trim() !== initCep.trim() ||
-      lograTexto.trim() !== initLograTexto.trim() ||
-      bairroTexto.trim() !== initBaiTexto.trim() ||
-      cidadeTexto.trim() !== initCidTexto.trim() ||
-      (cidadeSel?.codigo || 0) !== initCid ||
-      (bairroSel?.codigo || 0) !== initBai ||
-      (lograSel?.codigo || 0) !== initEnd ||
-      cepEntrega.trim() !== initCepEntrega.trim() ||
-      numeroEntrega.trim() !== initNumEntrega.trim() ||
-      complementoEntrega.trim() !== initComplEntrega.trim() ||
-      lograEntregaTexto.trim() !== initLograEntregaTexto.trim() ||
-      bairroEntregaTexto.trim() !== initBaiEntregaTexto.trim() ||
-      cidadeEntregaTexto.trim() !== initCidEntregaTexto.trim() ||
-      latitude.trim() !== initLat.trim() ||
-      longitude.trim() !== initLong.trim() ||
-      latitudeEntrega.trim() !== initLatEntrega.trim() ||
-      longitudeEntrega.trim() !== initLongEntrega.trim() ||
-      (cidadeEntregaSel?.codigo || 0) !== initCidEntrega ||
-      (bairroEntregaSel?.codigo || 0) !== initBaiEntrega ||
-      (lograEntregaSel?.codigo || 0) !== initEndEntrega
-    );
+    return {
+      nomeParc: nomeParc.trim() !== initNome.trim(),
+      razaoSocial: razaoSocial.trim() !== initRazao.trim(),
+      tipoPessoa: tipoPessoa !== initTipo,
+      situacao: situacao !== initSituacao,
+      cnpjCpf: cnpjCpf.trim() !== initCnpjCpf.trim(),
+      inscricaoEstadual: inscricaoEstadual.trim() !== initIe.trim(),
+      prazoPag: prazoPag.trim() !== initPrazo.trim(),
+      limiteCredito: limiteCredito.trim() !== initLimite.trim(),
+      observacoes: observacoes.trim() !== initObs.trim(),
+      limiteCreditoMensal: limiteCreditoMensal.trim() !== initLimiteMensal.trim(),
+      qtdMaxTitVencidos: qtdMaxTitVencidos.trim() !== initQtdTit.trim(),
+      codTab: codTab.trim() !== initCodTab.trim(),
+      codVend: codVend.trim() !== initCodVend.trim(),
+      codBco: codBco.trim() !== initCodBco.trim(),
+      descBonif: descBonif.trim() !== initDescBonif.trim(),
+      descFin: descFin.trim() !== initDescFin.trim(),
+      inscricaoMunicipal: inscricaoMunicipal.trim() !== initIm.trim(),
+      classificacaoIcms: classificacaoIcms.trim() !== initClassIcms.trim(),
+      retemIss: retemIss !== initRetIss,
+      retemInss: retemInss !== initRetInss,
+      retemPis: retemPis !== initRetPis,
+      retemCofins: retemCofins !== initRetCofins,
+      retemCsl: retemCsl !== initRetCsl,
+      adCredCli: adCredCli.trim() !== initAdCred.trim(),
+      adLimitePar: adLimitePar.trim() !== initAdLim.trim(),
+      adLocalCad: adLocalCad.trim() !== initAdLoc.trim(),
+      adEndCompleto: adEndCompleto.trim() !== initAdEndComp.trim(),
+      adCodBcoBol: adCodBcoBol.trim() !== initAdBcoBol.trim(),
+      simples: simples !== initSimples,
+      perfilEconect: perfilEconect !== initPerfilEconect,
+      tipoFatur: tipoFatur !== initTipoFatur,
+      regimeEspTribIss: regimeEspTribIss !== initRegimeIss,
+      telefone: telefone.trim() !== initTel.trim(),
+      email: email.trim() !== initEmail.trim(),
+      numero: numero.trim() !== initNum.trim(),
+      complemento: complemento.trim() !== initCompl.trim(),
+      cep: cep.trim() !== initCep.trim(),
+      lograTexto: lograTexto.trim() !== initLograTexto.trim(),
+      bairroTexto: bairroTexto.trim() !== initBaiTexto.trim(),
+      cidadeTexto: cidadeTexto.trim() !== initCidTexto.trim(),
+      cidadeSel: (cidadeSel?.codigo || 0) !== initCid,
+      bairroSel: (bairroSel?.codigo || 0) !== initBai,
+      lograSel: (lograSel?.codigo || 0) !== initEnd,
+      cepEntrega: cepEntrega.trim() !== initCepEntrega.trim(),
+      numeroEntrega: numeroEntrega.trim() !== initNumEntrega.trim(),
+      complementoEntrega: complementoEntrega.trim() !== initComplEntrega.trim(),
+      lograEntregaTexto: lograEntregaTexto.trim() !== initLograEntregaTexto.trim(),
+      bairroEntregaTexto: bairroEntregaTexto.trim() !== initBaiEntregaTexto.trim(),
+      cidadeEntregaTexto: cidadeEntregaTexto.trim() !== initCidEntregaTexto.trim(),
+      latitude: latitude.trim() !== initLat.trim(),
+      longitude: longitude.trim() !== initLong.trim(),
+      latitudeEntrega: latitudeEntrega.trim() !== initLatEntrega.trim(),
+      longitudeEntrega: longitudeEntrega.trim() !== initLongEntrega.trim(),
+      cidadeEntregaSel: (cidadeEntregaSel?.codigo || 0) !== initCidEntrega,
+      bairroEntregaSel: (bairroEntregaSel?.codigo || 0) !== initBaiEntrega,
+      lograEntregaSel: (lograEntregaSel?.codigo || 0) !== initEndEntrega,
+    };
   }, [
     isEditing,
     cliente,
@@ -542,6 +599,26 @@ export function ClienteFormModal({ isOpen, onClose, cliente }: ClienteFormModalP
     lograTexto,
   ]);
 
+  const isDirty = useMemo(() => {
+    if (!isEditing || !cliente) return true;
+    return Object.values(modifiedMap).some(Boolean);
+  }, [isEditing, cliente, modifiedMap]);
+
+  const handleTentativaFechar = () => {
+    if (isEditing && isDirty) {
+      setShowConfirmClose(true);
+    } else {
+      onClose();
+    }
+  };
+
+  const getInputClassName = (isMod?: boolean, extraClasses = '') =>
+    `w-full rounded-lg border px-3 py-2 text-xs font-bold transition-all ${
+      isMod
+        ? 'border-amber-400 bg-amber-50/50 ring-2 ring-amber-300/30 text-gray-900 shadow-2xs'
+        : 'border-gray-300 bg-white text-gray-900 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20'
+    } ${extraClasses}`;
+
   const completenessScore = useMemo(() => {
     let score = 0;
     const fields = [
@@ -561,7 +638,6 @@ export function ClienteFormModal({ isOpen, onClose, cliente }: ClienteFormModalP
   }, [nomeParc, cnpjCpf, telefone, email, cep, cidadeSel, cidadeTexto, limiteCredito, inscricaoEstadual, tipoPessoa]);
 
   useEffect(() => {
-    setModoVisualizacao(!!clienteAtual);
     if (clienteAtual) {
       setNomeParc(clienteAtual.nomeParc || '');
       setRazaoSocial(clienteAtual.razaoSocial || '');
@@ -850,7 +926,6 @@ export function ClienteFormModal({ isOpen, onClose, cliente }: ClienteFormModalP
         }
         if (res.latitude) setLatitude(res.latitude);
         if (res.longitude) setLongitude(res.longitude);
-        setModoVisualizacao(false);
       }
     } catch (e) {
       console.error('Erro ao buscar CEP Principal:', e);
@@ -906,7 +981,6 @@ export function ClienteFormModal({ isOpen, onClose, cliente }: ClienteFormModalP
         }
         if (res.latitude) setLatitudeEntrega(res.latitude);
         if (res.longitude) setLongitudeEntrega(res.longitude);
-        setModoVisualizacao(false);
       }
     } catch (e) {
       console.error('Erro ao buscar CEP Entrega:', e);
@@ -934,7 +1008,6 @@ export function ClienteFormModal({ isOpen, onClose, cliente }: ClienteFormModalP
       if (coords) {
         setLatitude(coords.latitude);
         setLongitude(coords.longitude);
-        setModoVisualizacao(false);
       } else {
         alert('Não foi possível localizar as coordenadas GPS para este endereço. Certifique-se de que a Cidade/Rua ou CEP estejam preenchidos.');
       }
@@ -961,7 +1034,6 @@ export function ClienteFormModal({ isOpen, onClose, cliente }: ClienteFormModalP
       if (coords) {
         setLatitudeEntrega(coords.latitude);
         setLongitudeEntrega(coords.longitude);
-        setModoVisualizacao(false);
       } else {
         alert('Não foi possível localizar as coordenadas GPS para o endereço de entrega.');
       }
@@ -1014,8 +1086,6 @@ export function ClienteFormModal({ isOpen, onClose, cliente }: ClienteFormModalP
           }
           if (res.logradouro) setLograTexto(res.logradouro);
         }
-
-        setModoVisualizacao(false);
       } else {
         alert('Não foi possível obter os dados do CNPJ informado. Verifique se o CNPJ está correto.');
       }
@@ -1094,8 +1164,6 @@ export function ClienteFormModal({ isOpen, onClose, cliente }: ClienteFormModalP
   const handleCepEntregaChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const formatted = formatCep(e.target.value);
     setCepEntrega(formatted);
-    // Ativa modo edição imediatamente ao digitar CEP (não aguarda a resposta assíncrona da API)
-    setModoVisualizacao(false);
     if (formatted.replace(/\D/g, '').length === 8) {
       executarBuscaCepEntrega(formatted);
     }
@@ -1266,19 +1334,14 @@ export function ClienteFormModal({ isOpen, onClose, cliente }: ClienteFormModalP
     return p;
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSubmit = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
     setErrorMessage(null);
+    setSuccessMessage(null);
 
+    // Validações básicas
     if (!nomeParc.trim()) {
-      setErrorMessage('Nome do cliente é obrigatório.');
-      setTab('geral');
-      return;
-    }
-
-    if (!cidadeSel && !cidadeTexto.trim()) {
-      setErrorMessage('Cidade é obrigatória (regra do Sankhya).');
-      setTab('endereco');
+      setErrorMessage('O Nome / Razão Social do cliente é obrigatório.');
       return;
     }
 
@@ -1288,7 +1351,6 @@ export function ClienteFormModal({ isOpen, onClose, cliente }: ClienteFormModalP
         const updatePayload = buildDirtyUpdatePayload();
         await atualizarMutation.mutateAsync({ codParc: cliente.codParc, payload: updatePayload });
         setSuccessMessage(`Cliente #${cliente.codParc} atualizado com sucesso no Sankhya!`);
-        setModoVisualizacao(true);
         setTimeout(() => {
           setSuccessMessage(null);
         }, 4000);
@@ -1377,106 +1439,138 @@ export function ClienteFormModal({ isOpen, onClose, cliente }: ClienteFormModalP
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-2 sm:p-4 md:p-6 backdrop-blur-sm animate-in fade-in duration-200">
       <div className="flex max-h-[92vh] w-full max-w-4xl lg:max-w-5xl flex-col rounded-xl bg-white shadow-2xl overflow-hidden transition-all">
-        {/* Header */}
-        <div className="flex items-center justify-between border-b border-gray-100 bg-gray-50/50 px-6 py-4">
-          <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-100 text-blue-700">
-              {tipoPessoa === 'J' ? <Building className="h-5 w-5" /> : <User className="h-5 w-5" />}
+        {/* Header Compacto com Ações no Topo */}
+        <div className="flex items-center justify-between border-b border-gray-100 bg-gray-50/50 px-4 py-2.5 sm:px-5 sm:py-3">
+          <div className="flex items-center gap-2.5">
+            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-blue-100 text-blue-700">
+              {tipoPessoa === 'J' ? <Building className="h-4 w-4" /> : <User className="h-4 w-4" />}
             </div>
             <div>
-              <div className="flex items-center gap-2">
-                <h3 className="text-base font-bold text-gray-900">
-                  {isEditing ? `Cliente #${cliente.codParc} - ${cliente.nomeParc}` : 'Cadastrar Novo Cliente'}
-                </h3>
-                {isEditing && modoVisualizacao && (
-                  <span className="rounded-full bg-blue-50 border border-blue-200 px-2 py-0.5 text-[10px] font-semibold text-blue-700">
-                    Modo Leitura
-                  </span>
-                )}
-                {isEditing && !modoVisualizacao && (
-                  <span className="rounded-full bg-amber-50 border border-amber-200 px-2 py-0.5 text-[10px] font-semibold text-amber-700">
-                    Modo Edição
-                  </span>
-                )}
-              </div>
-              <p className="text-xs text-gray-500">
+              <h3 className="text-sm font-bold text-gray-900">
                 {isEditing
-                  ? modoVisualizacao
-                    ? 'Visualização dos dados do parceiro (clique em "Habilitar Edição" para alterar)'
-                    : 'Modifique os dados abaixo. O botão Salvar será ativado ao alterar qualquer campo.'
+                  ? `Cliente #${cliente.codParc} - ${cliente.razaoSocial || cliente.nomeParc}`
+                  : 'Cadastrar Novo Cliente'}
+              </h3>
+              <p className="text-[11px] text-gray-500">
+                {isEditing
+                  ? 'Edite os campos desejados. Os campos modificados serão destacados automaticamente.'
                   : 'Preencha os dados do novo cliente'}
               </p>
             </div>
           </div>
 
           <div className="flex items-center gap-2">
-            {/* Mode Switcher: Rápido vs Completo */}
-            <div className="flex items-center rounded-lg border border-gray-300 bg-gray-100 p-0.5 shadow-xs">
-              <button
-                type="button"
-                onClick={() => setModoFormulario('rapido')}
-                title="Visualização simplificada com apenas os campos fundamentais"
-                className={`inline-flex items-center gap-1 rounded-md px-2.5 py-1 text-xs font-bold transition-all cursor-pointer ${
-                  modoFormulario === 'rapido'
-                    ? 'bg-indigo-600 text-white shadow-xs'
-                    : 'text-gray-700 hover:text-gray-900'
-                }`}
-              >
-                <Zap className="h-3.5 w-3.5" />
-                Cadastro Rápido
-              </button>
-              <button
-                type="button"
-                onClick={() => setModoFormulario('completo')}
-                title="Visualização ERP completa com todos os campos e tabelas do Sankhya"
-                className={`inline-flex items-center gap-1 rounded-md px-2.5 py-1 text-xs font-bold transition-all cursor-pointer ${
-                  modoFormulario === 'completo'
-                    ? 'bg-indigo-600 text-white shadow-xs'
-                    : 'text-gray-700 hover:text-gray-900'
-                }`}
-              >
-                <SlidersHorizontal className="h-3.5 w-3.5" />
-                Cadastro Completo (ERP)
-              </button>
-            </div>
+            {/* Mode Switcher Contextual Compacto */}
+            {!isEditing ? (
+              <div className="flex items-center rounded-lg border border-gray-300 bg-gray-100 p-0.5 shadow-xs">
+                <button
+                  type="button"
+                  onClick={() => setModoFormulario('rapido')}
+                  title="Visualização simplificada com apenas os 8 campos fundamentais"
+                  className={`inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[11px] font-bold transition-all cursor-pointer ${
+                    modoFormulario === 'rapido'
+                      ? 'bg-indigo-600 text-white shadow-xs'
+                      : 'text-gray-700 hover:text-gray-900'
+                  }`}
+                >
+                  <Zap className="h-3 w-3" />
+                  Cadastro Rápido
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setModoFormulario('completo')}
+                  title="Visualização ERP completa com todos os campos do Sankhya"
+                  className={`inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[11px] font-bold transition-all cursor-pointer ${
+                    modoFormulario === 'completo'
+                      ? 'bg-indigo-600 text-white shadow-xs'
+                      : 'text-gray-700 hover:text-gray-900'
+                  }`}
+                >
+                  <SlidersHorizontal className="h-3 w-3" />
+                  Cadastro Completo
+                </button>
+              </div>
+            ) : (
+              <div className="flex items-center rounded-lg border border-gray-300 bg-gray-100 p-0.5 shadow-xs">
+                <button
+                  type="button"
+                  onClick={() => setModoFormulario('rapido')}
+                  title="Visualização em Ficha Resumo dos dados principais"
+                  className={`inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[11px] font-bold transition-all cursor-pointer ${
+                    modoFormulario === 'rapido'
+                      ? 'bg-indigo-600 text-white shadow-xs'
+                      : 'text-gray-700 hover:text-gray-900'
+                  }`}
+                >
+                  <FileText className="h-3 w-3" />
+                  Ficha Resumo
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setModoFormulario('completo')}
+                  title="Visualização de todas as fichas e seções completas"
+                  className={`inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[11px] font-bold transition-all cursor-pointer ${
+                    modoFormulario === 'completo'
+                      ? 'bg-indigo-600 text-white shadow-xs'
+                      : 'text-gray-700 hover:text-gray-900'
+                  }`}
+                >
+                  <SlidersHorizontal className="h-3 w-3" />
+                  Ficha Completa
+                </button>
+              </div>
+            )}
 
-            {isEditing && (
+            {/* Ações Principais no Topo */}
+            <div className="flex items-center gap-1.5 border-l border-gray-200 pl-2">
               <button
                 type="button"
-                onClick={() => setModoVisualizacao(!modoVisualizacao)}
-                className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold transition-colors cursor-pointer ${
-                  modoVisualizacao
-                    ? 'bg-amber-50 text-amber-800 border border-amber-300 hover:bg-amber-100 shadow-xs'
-                    : 'bg-indigo-50 text-indigo-700 border border-indigo-300 hover:bg-indigo-100 shadow-xs'
+                onClick={handleTentativaFechar}
+                className="rounded-md border border-gray-300 bg-white px-2.5 py-1 text-xs font-semibold text-gray-700 hover:bg-gray-100 transition-colors shadow-2xs cursor-pointer"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={handleSubmit}
+                disabled={isLoading || (isEditing && !isDirty)}
+                title={isEditing && !isDirty ? 'Modifique algum campo para habilitar a opção de salvar' : 'Salvar dados do cliente'}
+                className={`inline-flex items-center gap-1 rounded-md px-3 py-1 text-xs font-bold transition-all shadow-2xs ${
+                  isEditing && !isDirty
+                    ? 'bg-gray-200 text-gray-400 border border-gray-300 cursor-not-allowed opacity-70'
+                    : 'bg-blue-600 text-white hover:bg-blue-700 shadow-sm hover:shadow-md cursor-pointer'
                 }`}
               >
-                {modoVisualizacao ? (
+                {isLoading ? (
                   <>
-                    <Pencil className="h-3.5 w-3.5 text-amber-800" /> Habilitar Edição
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    Salvando...
                   </>
                 ) : (
                   <>
-                    <Eye className="h-3.5 w-3.5 text-indigo-700" /> Modo Leitura
+                    <CheckCircle2 className="h-3.5 w-3.5" />
+                    {isEditing ? 'Salvar Edição' : 'Cadastrar Cliente'}
                   </>
                 )}
               </button>
-            )}
+            </div>
+
             <button
               type="button"
-              onClick={onClose}
-              className="rounded-lg p-1.5 text-gray-400 hover:bg-gray-200 hover:text-gray-700 transition-colors cursor-pointer"
+              onClick={handleTentativaFechar}
+              className="rounded-lg p-1 text-gray-400 hover:bg-gray-200 hover:text-gray-700 transition-colors cursor-pointer"
             >
-              <X className="h-5 w-5" />
+              <X className="h-4 w-4" />
             </button>
           </div>
         </div>
 
         {/* Barra de Saúde / Completude do Cadastro */}
-        <div className="flex items-center justify-between border-b border-gray-200 bg-indigo-50/50 px-6 py-2 text-xs">
+        <div className="flex items-center justify-between border-b border-gray-200 bg-indigo-50/50 px-4 py-1.5 sm:px-5 text-[11px]">
           <div className="flex items-center gap-2">
-            <ShieldCheck className="h-4 w-4 text-indigo-600" />
+            <ShieldCheck className="h-3.5 w-3.5 text-indigo-600" />
             <span className="font-bold text-gray-800">Completude do Cadastro:</span>
-            <div className="h-2 w-28 rounded-full bg-gray-200 overflow-hidden">
+            <div className="h-2 w-24 rounded-full bg-gray-200 overflow-hidden">
               <div
                 className={`h-full transition-all duration-500 ${
                   completenessScore >= 80
@@ -1490,7 +1584,7 @@ export function ClienteFormModal({ isOpen, onClose, cliente }: ClienteFormModalP
             </div>
             <span className="font-extrabold text-indigo-900">{completenessScore}%</span>
           </div>
-          <span className="text-[11px] font-semibold text-gray-600 hidden md:inline">
+          <span className="text-[10px] font-semibold text-gray-600 hidden md:inline">
             {completenessScore === 100
               ? '✨ Cadastro 100% completo e qualificado!'
               : '💡 Dica: Preencha CNPJ, Nome, Telefone, E-mail e Endereço para atingir 100%'}
@@ -1499,8 +1593,8 @@ export function ClienteFormModal({ isOpen, onClose, cliente }: ClienteFormModalP
 
         {/* Feedback Banners (Erro ou Sucesso) */}
         {errorMessage && (
-          <div className="mx-6 mt-4 flex items-start justify-between gap-3 rounded-lg border border-red-200 bg-red-50 p-3.5 text-xs text-red-800 shadow-sm animate-in fade-in duration-200">
-            <div className="flex items-start gap-2.5">
+          <div className="mx-4 mt-3 flex items-start justify-between gap-3 rounded-lg border border-red-200 bg-red-50 p-3 text-xs text-red-800 shadow-sm animate-in fade-in duration-200">
+            <div className="flex items-start gap-2">
               <AlertCircle className="h-4 w-4 text-red-600 flex-shrink-0 mt-0.5" />
               <div>
                 <p className="font-bold text-red-900">Erro ao salvar no Sankhya</p>
@@ -1518,8 +1612,8 @@ export function ClienteFormModal({ isOpen, onClose, cliente }: ClienteFormModalP
         )}
 
         {successMessage && (
-          <div className="mx-6 mt-4 flex items-center justify-between gap-3 rounded-lg border border-emerald-200 bg-emerald-50 p-3.5 text-xs text-emerald-800 shadow-sm animate-in fade-in duration-200">
-            <div className="flex items-center gap-2.5">
+          <div className="mx-4 mt-3 flex items-center justify-between gap-3 rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-xs text-emerald-800 shadow-sm animate-in fade-in duration-200">
+            <div className="flex items-center gap-2">
               <CheckCircle2 className="h-4 w-4 text-emerald-600 flex-shrink-0" />
               <p className="font-bold text-emerald-900">{successMessage}</p>
             </div>
@@ -1533,110 +1627,31 @@ export function ClienteFormModal({ isOpen, onClose, cliente }: ClienteFormModalP
           </div>
         )}
 
-        {/* Tab Navigation (Exibido apenas no Modo Completo ERP) */}
+        {/* Control Bar para Cards Sanfonados (Modo Página Única ERP) */}
         {modoFormulario === 'completo' && (
-          <div className="flex border-b border-gray-200 bg-white px-6 overflow-x-auto">
-            <button
-              type="button"
-              onClick={() => setTab('geral')}
-              className={`flex items-center gap-2 border-b-2 py-3 px-3 text-xs font-bold whitespace-nowrap transition-colors cursor-pointer ${
-                tab === 'geral'
-                  ? 'border-indigo-600 text-indigo-700'
-                  : 'border-transparent text-gray-700 hover:text-gray-900'
-              }`}
-            >
-              <FileText className="h-4 w-4" />
-              Dados Gerais
-            </button>
-            <button
-              type="button"
-              onClick={() => setTab('contato')}
-              className={`flex items-center gap-2 border-b-2 py-3 px-3 text-xs font-bold whitespace-nowrap transition-colors cursor-pointer ${
-                tab === 'contato'
-                  ? 'border-indigo-600 text-indigo-700'
-                  : 'border-transparent text-gray-700 hover:text-gray-900'
-              }`}
-            >
-              <Phone className="h-4 w-4" />
-              Contato
-            </button>
-            <button
-              type="button"
-              onClick={() => setTab('endereco')}
-              className={`flex items-center gap-2 border-b-2 py-3 px-3 text-xs font-bold whitespace-nowrap transition-colors cursor-pointer ${
-                tab === 'endereco'
-                  ? 'border-indigo-600 text-indigo-700'
-                  : 'border-transparent text-gray-700 hover:text-gray-900'
-              }`}
-            >
-              <MapPin className="h-4 w-4" />
-              Endereço
-            </button>
-            <button
-              type="button"
-              onClick={() => setTab('empresas')}
-              className={`flex items-center gap-2 border-b-2 py-3 px-3 text-xs font-bold whitespace-nowrap transition-colors cursor-pointer ${
-                tab === 'empresas'
-                  ? 'border-indigo-600 text-indigo-700'
-                  : 'border-transparent text-gray-700 hover:text-gray-900'
-              }`}
-            >
-              <Building className="h-4 w-4" />
-              Empresas / Grupo ICMS
-            </button>
-            <button
-              type="button"
-              onClick={() => setTab('financeiro')}
-              className={`flex items-center gap-2 border-b-2 py-3 px-3 text-xs font-bold whitespace-nowrap transition-colors cursor-pointer ${
-                tab === 'financeiro'
-                  ? 'border-indigo-600 text-indigo-700'
-                  : 'border-transparent text-gray-700 hover:text-gray-900'
-              }`}
-            >
-              <CreditCard className="h-4 w-4" />
-              Financeiro & Crédito
-            </button>
-            <button
-              type="button"
-              onClick={() => setTab('fiscal')}
-              className={`flex items-center gap-2 border-b-2 py-3 px-3 text-xs font-bold whitespace-nowrap transition-colors cursor-pointer ${
-                tab === 'fiscal'
-                  ? 'border-indigo-600 text-indigo-700'
-                  : 'border-transparent text-gray-700 hover:text-gray-900'
-              }`}
-            >
-              <Receipt className="h-4 w-4" />
-              Fiscal
-            </button>
-            <button
-              type="button"
-              onClick={() => setTab('customizados')}
-              className={`flex items-center gap-2 border-b-2 py-3 px-3 text-xs font-bold whitespace-nowrap transition-colors cursor-pointer ${
-                tab === 'customizados'
-                  ? 'border-indigo-600 text-indigo-700'
-                  : 'border-transparent text-gray-700 hover:text-gray-900'
-              }`}
-            >
-              <Layers className="h-4 w-4" />
-              Campos AD_*
-            </button>
-            <button
-              type="button"
-              onClick={() => setTab('anexos')}
-              className={`flex items-center gap-2 border-b-2 py-3 px-3 text-xs font-bold whitespace-nowrap transition-colors cursor-pointer ${
-                tab === 'anexos'
-                  ? 'border-indigo-600 text-indigo-700'
-                  : 'border-transparent text-gray-700 hover:text-gray-900'
-              }`}
-            >
-              <Paperclip className="h-4 w-4" />
-              Anexos & Documentos
-              {anexosParceiro.length > 0 && (
-                <span className="ml-1 rounded-full bg-indigo-100 px-1.5 py-0.5 text-[10px] font-bold text-indigo-800">
-                  {anexosParceiro.length}
-                </span>
-              )}
-            </button>
+          <div className="flex items-center justify-between border-b border-gray-200 bg-gray-50/80 px-4 py-1.5 sm:px-5 text-[11px]">
+            <span className="font-extrabold text-gray-800 flex items-center gap-1.5">
+              <SlidersHorizontal className="h-3.5 w-3.5 text-indigo-600" />
+              Ficha Cadastral
+            </span>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setAllAccordions(true)}
+                className="inline-flex items-center gap-1 rounded-md border border-gray-300 bg-white px-2 py-0.5 text-[10px] font-bold text-gray-700 hover:bg-gray-100 transition-colors shadow-xs cursor-pointer"
+              >
+                <Maximize2 className="h-3 w-3 text-indigo-600" />
+                Expandir Todos
+              </button>
+              <button
+                type="button"
+                onClick={() => setAllAccordions(false)}
+                className="inline-flex items-center gap-1 rounded-md border border-gray-300 bg-white px-2 py-0.5 text-[10px] font-bold text-gray-700 hover:bg-gray-100 transition-colors shadow-xs cursor-pointer"
+              >
+                <Minimize2 className="h-3 w-3 text-gray-500" />
+                Recolher Todos
+              </button>
+            </div>
           </div>
         )}
 
@@ -1699,16 +1714,14 @@ export function ClienteFormModal({ isOpen, onClose, cliente }: ClienteFormModalP
                       </div>
 
                       <div className="md:col-span-5">
-                        <label className="block text-xs font-bold text-gray-800 mb-1">
-                          {tipoPessoa === 'J' ? 'CNPJ' : 'CPF'} <span className="text-red-500">*</span>
-                        </label>
+                        <FormLabel label={tipoPessoa === 'J' ? 'CNPJ' : 'CPF'} obrigatorio modificado={modifiedMap.cnpjCpf} />
                         <div className="flex items-center gap-2">
                           <input
                             type="text"
                             placeholder={tipoPessoa === 'J' ? '00.000.000/0000-00' : '000.000.000-00'}
                             value={cnpjCpf}
                             onChange={handleCnpjCpfChange}
-                            className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-xs font-bold text-gray-900 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20"
+                            className={getInputClassName(modifiedMap.cnpjCpf)}
                           />
                           {tipoPessoa === 'J' && (
                             <button
@@ -1725,26 +1738,24 @@ export function ClienteFormModal({ isOpen, onClose, cliente }: ClienteFormModalP
                       </div>
 
                       <div className="md:col-span-4">
-                        <label className="block text-xs font-bold text-gray-800 mb-1">
-                          Inscrição Estadual (IE)
-                        </label>
+                        <FormLabel label="Inscrição Estadual (IE)" modificado={modifiedMap.inscricaoEstadual} />
                         <input
                           type="text"
                           placeholder="Isento ou Nº da IE"
                           value={inscricaoEstadual}
                           onChange={(e) => setInscricaoEstadual(e.target.value)}
-                          className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-xs font-bold text-gray-900 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20"
+                          className={getInputClassName(modifiedMap.inscricaoEstadual)}
                         />
                       </div>
 
                       <div className="md:col-span-12">
-                        <FormLabel label="Nome do Cliente / Razão Social" obrigatorio />
+                        <FormLabel label="Nome do Cliente / Razão Social" obrigatorio modificado={modifiedMap.nomeParc} />
                         <input
                           type="text"
                           placeholder="Nome fantasia ou Razão social completa"
                           value={nomeParc}
                           onChange={(e) => setNomeParc(e.target.value)}
-                          className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-xs font-bold text-gray-900 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20"
+                          className={getInputClassName(modifiedMap.nomeParc)}
                         />
                       </div>
                     </div>
@@ -1758,23 +1769,23 @@ export function ClienteFormModal({ isOpen, onClose, cliente }: ClienteFormModalP
                     </h4>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div>
-                        <FormLabel label="Telefone / WhatsApp" />
+                        <FormLabel label="Telefone / WhatsApp" modificado={modifiedMap.telefone} />
                         <input
                           type="text"
                           placeholder="(00) 00000-0000"
                           value={telefone}
                           onChange={(e) => setTelefone(formatPhone(e.target.value))}
-                          className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-xs font-bold text-gray-900 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20"
+                          className={getInputClassName(modifiedMap.telefone)}
                         />
                       </div>
                       <div>
-                        <FormLabel label="E-mail Principal" />
+                        <FormLabel label="E-mail Principal" modificado={modifiedMap.email} />
                         <input
                           type="email"
                           placeholder="contato@cliente.com.br"
                           value={email}
                           onChange={(e) => setEmail(e.target.value)}
-                          className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-xs font-bold text-gray-900 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20"
+                          className={getInputClassName(modifiedMap.email)}
                         />
                       </div>
                     </div>
@@ -1788,14 +1799,14 @@ export function ClienteFormModal({ isOpen, onClose, cliente }: ClienteFormModalP
                     </h4>
                     <div className="grid grid-cols-1 sm:grid-cols-12 gap-3">
                       <div className="sm:col-span-4">
-                        <FormLabel label="CEP" />
+                        <FormLabel label="CEP" modificado={modifiedMap.cep} />
                         <div className="relative">
                           <input
                             type="text"
                             placeholder="00000-000"
                             value={cep}
                             onChange={handleCepChange}
-                            className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-xs font-bold text-gray-900 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20"
+                            className={getInputClassName(modifiedMap.cep)}
                           />
                           {isBuscandoCepMain && (
                             <Loader2 className="absolute right-3 top-2.5 h-4 w-4 animate-spin text-indigo-600" />
@@ -1804,7 +1815,7 @@ export function ClienteFormModal({ isOpen, onClose, cliente }: ClienteFormModalP
                       </div>
 
                       <div className="sm:col-span-8">
-                        <FormLabel label="Logradouro / Rua" />
+                        <FormLabel label="Logradouro / Rua" modificado={modifiedMap.lograTexto || modifiedMap.lograSel} />
                         <input
                           type="text"
                           placeholder="Rua, Avenida, Alameda..."
@@ -1813,7 +1824,7 @@ export function ClienteFormModal({ isOpen, onClose, cliente }: ClienteFormModalP
                             setLograTexto(e.target.value);
                             setLograSel(null);
                           }}
-                          className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-xs font-bold text-gray-900 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20"
+                          className={getInputClassName(modifiedMap.lograTexto || modifiedMap.lograSel)}
                         />
                       </div>
 
@@ -1858,12 +1869,31 @@ export function ClienteFormModal({ isOpen, onClose, cliente }: ClienteFormModalP
                 </div>
               )}
 
-              {/* MODO CADASTRO COMPLETO ERP (ABAS EXPANDIDAS) */}
+              {/* MODO CADASTRO COMPLETO ERP (CARDS SANFONADOS EM PÁGINA ÚNICA) */}
               {modoFormulario === 'completo' && (
-                <>
-                  {/* TAB 1: DADOS GERAIS */}
-                  {tab === 'geral' && (
-            <div className="space-y-4">
+                <div className="space-y-4">
+                  {/* CARD 1: DADOS GERAIS */}
+                  <div className="rounded-xl border border-gray-200 bg-white shadow-xs overflow-hidden transition-all">
+                    <button
+                      type="button"
+                      onClick={() => toggleAccordion('geral')}
+                      className="flex w-full items-center justify-between bg-gray-50/80 px-4 py-3 text-left transition-colors hover:bg-gray-100/80 cursor-pointer"
+                    >
+                      <div className="flex items-center gap-2">
+                        {accordionsOpen.geral ? (
+                          <ChevronDown className="h-4 w-4 text-indigo-600 shrink-0" />
+                        ) : (
+                          <ChevronRight className="h-4 w-4 text-gray-400 shrink-0" />
+                        )}
+                        <FileText className="h-4 w-4 text-indigo-600 shrink-0" />
+                        <span className="text-xs font-extrabold text-gray-900">1. Dados Cadastrais & Fiscais Básicos</span>
+                      </div>
+                      <span className="text-[11px] font-bold text-gray-600 truncate max-w-[200px] sm:max-w-xs">
+                        {nomeParc ? `${nomeParc} (${tipoPessoa === 'J' ? 'PJ' : 'PF'})` : 'Clique para expandir'}
+                      </span>
+                    </button>
+                    {accordionsOpen.geral && (
+                      <div className="p-4 space-y-4 border-t border-gray-200">
               {/* 1. TIPO PESSOA, CNPJ/CPF COM CONSULTA RECEITA/SINTEGRA E INSCRIÇÃO ESTADUAL NO INÍCIO */}
               <div className="rounded-lg border border-blue-100 bg-blue-50/40 p-4 space-y-3 shadow-sm">
                 <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-end">
@@ -2147,10 +2177,30 @@ export function ClienteFormModal({ isOpen, onClose, cliente }: ClienteFormModalP
               </div>
             </div>
           )}
+        </div>
 
-          {/* TAB 2: CONTATO */}
-          {tab === 'contato' && (
-            <div className="space-y-4">
+                  {/* CARD 2: CONTATO & NOTIFICAÇÕES */}
+                  <div className="rounded-xl border border-gray-200 bg-white shadow-xs overflow-hidden transition-all">
+                    <button
+                      type="button"
+                      onClick={() => toggleAccordion('contato')}
+                      className="flex w-full items-center justify-between bg-gray-50/80 px-4 py-3 text-left transition-colors hover:bg-gray-100/80 cursor-pointer"
+                    >
+                      <div className="flex items-center gap-2">
+                        {accordionsOpen.contato ? (
+                          <ChevronDown className="h-4 w-4 text-indigo-600 shrink-0" />
+                        ) : (
+                          <ChevronRight className="h-4 w-4 text-gray-400 shrink-0" />
+                        )}
+                        <Phone className="h-4 w-4 text-indigo-600 shrink-0" />
+                        <span className="text-xs font-extrabold text-gray-900">2. Contatos & Notificações (E-mails DANFE / NFe)</span>
+                      </div>
+                      <span className="text-[11px] font-bold text-gray-600 truncate max-w-[200px] sm:max-w-xs">
+                        {telefone || email ? `${telefone || ''} ${email ? '• ' + email : ''}` : 'Clique para expandir'}
+                      </span>
+                    </button>
+                    {accordionsOpen.contato && (
+                      <div className="p-4 space-y-4 border-t border-gray-200">
               <div>
                 <label className="block text-xs font-semibold text-gray-700 mb-1">
                   E-mail
@@ -2187,10 +2237,30 @@ export function ClienteFormModal({ isOpen, onClose, cliente }: ClienteFormModalP
               </div>
             </div>
           )}
+        </div>
 
-          {/* TAB 3: ENDEREÇO (UNIFICADO) */}
-          {tab === 'endereco' && (
-            <div className="space-y-4">
+                  {/* CARD 3: ENDEREÇO PRINCIPAL & ENTREGA */}
+                  <div className="rounded-xl border border-gray-200 bg-white shadow-xs overflow-hidden transition-all">
+                    <button
+                      type="button"
+                      onClick={() => toggleAccordion('endereco')}
+                      className="flex w-full items-center justify-between bg-gray-50/80 px-4 py-3 text-left transition-colors hover:bg-gray-100/80 cursor-pointer"
+                    >
+                      <div className="flex items-center gap-2">
+                        {accordionsOpen.endereco ? (
+                          <ChevronDown className="h-4 w-4 text-indigo-600 shrink-0" />
+                        ) : (
+                          <ChevronRight className="h-4 w-4 text-gray-400 shrink-0" />
+                        )}
+                        <MapPin className="h-4 w-4 text-indigo-600 shrink-0" />
+                        <span className="text-xs font-extrabold text-gray-900">3. Endereço Principal & Entrega</span>
+                      </div>
+                      <span className="text-[11px] font-bold text-gray-600 truncate max-w-[200px] sm:max-w-xs">
+                        {cidadeTexto || cep ? `${cidadeTexto || ''} ${cep ? '• CEP ' + cep : ''}` : 'Clique para expandir'}
+                      </span>
+                    </button>
+                    {accordionsOpen.endereco && (
+                      <div className="p-4 space-y-4 border-t border-gray-200">
               {/* Endereço Completo Formatado (AD_ENDCOMPLETO) */}
               <div>
                 <FormLabel label="Endereço Completo Formatado (AD_ENDCOMPLETO)" tooltip="AD_ENDCOMPLETO — Campo calculado via sub-select no Sankhya (Apenas Leitura)" />
@@ -2403,27 +2473,25 @@ export function ClienteFormModal({ isOpen, onClose, cliente }: ClienteFormModalP
                         <Truck className="h-4 w-4 text-blue-600" />
                         <h4 className="text-xs font-bold text-gray-900">Dados do Endereço de Entrega</h4>
                       </div>
-                      {!modoVisualizacao && (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setCidadeEntregaSel(cidadeSel);
-                            setCidadeEntregaTexto(cidadeTexto);
-                            setBairroEntregaSel(bairroSel);
-                            setBairroEntregaTexto(bairroTexto);
-                            setLograEntregaSel(lograSel);
-                            setLograEntregaTexto(lograTexto);
-                            setNumeroEntrega(numero);
-                            setComplementoEntrega(complemento);
-                            setCepEntrega(cep);
-                          }}
-                          className="inline-flex items-center gap-1.5 rounded-lg border border-blue-200 bg-blue-50 px-2.5 py-1 text-[11px] font-semibold text-blue-700 hover:bg-blue-100 transition-colors"
-                          title="Copiar os dados preenchidos no Endereço Principal"
-                        >
-                          <Copy className="h-3.5 w-3.5" />
-                          Copiar do Endereço Principal
-                        </button>
-                      )}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setCidadeEntregaSel(cidadeSel);
+                          setCidadeEntregaTexto(cidadeTexto);
+                          setBairroEntregaSel(bairroSel);
+                          setBairroEntregaTexto(bairroTexto);
+                          setLograEntregaSel(lograSel);
+                          setLograEntregaTexto(lograTexto);
+                          setNumeroEntrega(numero);
+                          setComplementoEntrega(complemento);
+                          setCepEntrega(cep);
+                        }}
+                        className="inline-flex items-center gap-1.5 rounded-lg border border-blue-200 bg-blue-50 px-2.5 py-1 text-[11px] font-semibold text-blue-700 hover:bg-blue-100 transition-colors cursor-pointer"
+                        title="Copiar os dados preenchidos no Endereço Principal"
+                      >
+                        <Copy className="h-3.5 w-3.5" />
+                        Copiar do Endereço Principal
+                      </button>
                     </div>
                     <div className="space-y-4">
                       {/* 1. CEP p/ Entrega (PRIMEIRO CAMPO) */}
@@ -2578,10 +2646,30 @@ export function ClienteFormModal({ isOpen, onClose, cliente }: ClienteFormModalP
               )}
             </div>
           )}
+        </div>
 
-          {/* TAB 5: EMPRESAS / GRUPO ICMS (TGFPAEM) */}
-          {tab === 'empresas' && (
-            <div className="space-y-4">
+                  {/* CARD 4: EMPRESAS / GRUPO ICMS */}
+                  <div className="rounded-xl border border-gray-200 bg-white shadow-xs overflow-hidden transition-all">
+                    <button
+                      type="button"
+                      onClick={() => toggleAccordion('empresas')}
+                      className="flex w-full items-center justify-between bg-gray-50/80 px-4 py-3 text-left transition-colors hover:bg-gray-100/80 cursor-pointer"
+                    >
+                      <div className="flex items-center gap-2">
+                        {accordionsOpen.empresas ? (
+                          <ChevronDown className="h-4 w-4 text-indigo-600 shrink-0" />
+                        ) : (
+                          <ChevronRight className="h-4 w-4 text-gray-400 shrink-0" />
+                        )}
+                        <Building className="h-4 w-4 text-indigo-600 shrink-0" />
+                        <span className="text-xs font-extrabold text-gray-900">4. Empresas / Grupo ICMS (TGFPAEM)</span>
+                      </div>
+                      <span className="text-[11px] font-bold text-gray-600 truncate max-w-[200px] sm:max-w-xs">
+                        {empresasParceiro.length > 0 ? `${empresasParceiro.length} vinculada(s)` : 'Clique para expandir'}
+                      </span>
+                    </button>
+                    {accordionsOpen.empresas && (
+                      <div className="p-4 space-y-4 border-t border-gray-200">
               {!isEditing || !cliente?.codParc ? (
                 <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-xs text-amber-800 flex items-center gap-3">
                   <Info className="h-5 w-5 text-amber-600 shrink-0" />
@@ -2804,10 +2892,30 @@ export function ClienteFormModal({ isOpen, onClose, cliente }: ClienteFormModalP
               )}
             </div>
           )}
+        </div>
 
-          {/* TAB 6: FINANCEIRO & CRÉDITO */}
-          {tab === 'financeiro' && (
-            <div className="space-y-4">
+                  {/* CARD 5: FINANCEIRO & CRÉDITO */}
+                  <div className="rounded-xl border border-gray-200 bg-white shadow-xs overflow-hidden transition-all">
+                    <button
+                      type="button"
+                      onClick={() => toggleAccordion('financeiro')}
+                      className="flex w-full items-center justify-between bg-gray-50/80 px-4 py-3 text-left transition-colors hover:bg-gray-100/80 cursor-pointer"
+                    >
+                      <div className="flex items-center gap-2">
+                        {accordionsOpen.financeiro ? (
+                          <ChevronDown className="h-4 w-4 text-indigo-600 shrink-0" />
+                        ) : (
+                          <ChevronRight className="h-4 w-4 text-gray-400 shrink-0" />
+                        )}
+                        <CreditCard className="h-4 w-4 text-indigo-600 shrink-0" />
+                        <span className="text-xs font-extrabold text-gray-900">5. Condições Comerciais, Crédito & Financeiro</span>
+                      </div>
+                      <span className="text-[11px] font-bold text-gray-600 truncate max-w-[200px] sm:max-w-xs">
+                        {limiteCredito ? `Limite: R$ ${limiteCredito}` : 'Clique para expandir'}
+                      </span>
+                    </button>
+                    {accordionsOpen.financeiro && (
+                      <div className="p-4 space-y-4 border-t border-gray-200">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <FormLabel label="Limite de Crédito Mensal" tooltip="LIMCREDMENSAL — Limite mensal concedido ao cliente" />
@@ -2978,15 +3086,35 @@ export function ClienteFormModal({ isOpen, onClose, cliente }: ClienteFormModalP
                       onChange={(e) => setMotBloq(e.target.value)}
                       className="w-full rounded-lg border border-gray-300 px-3 py-2 text-xs font-medium text-gray-900 bg-white focus:border-blue-500 focus:outline-none"
                     />
-                  </div>
                 </div>
               </div>
             </div>
-          )}
+          </div>
+        )}
+      </div>
 
-          {/* TAB 5: FISCAL & TRIBUTÁRIO */}
-          {tab === 'fiscal' && (
-            <div className="space-y-4">
+                  {/* CARD 6: FISCAL & TRIBUTÁRIO */}
+                  <div className="rounded-xl border border-gray-200 bg-white shadow-xs overflow-hidden transition-all">
+                    <button
+                      type="button"
+                      onClick={() => toggleAccordion('fiscal')}
+                      className="flex w-full items-center justify-between bg-gray-50/80 px-4 py-3 text-left transition-colors hover:bg-gray-100/80 cursor-pointer"
+                    >
+                      <div className="flex items-center gap-2">
+                        {accordionsOpen.fiscal ? (
+                          <ChevronDown className="h-4 w-4 text-indigo-600 shrink-0" />
+                        ) : (
+                          <ChevronRight className="h-4 w-4 text-gray-400 shrink-0" />
+                        )}
+                        <Receipt className="h-4 w-4 text-indigo-600 shrink-0" />
+                        <span className="text-xs font-extrabold text-gray-900">6. Regras Fiscais & Tributárias</span>
+                      </div>
+                      <span className="text-[11px] font-bold text-gray-600 truncate max-w-[200px] sm:max-w-xs">
+                        {simples ? `Simples: ${simples}` : 'Clique para expandir'}
+                      </span>
+                    </button>
+                    {accordionsOpen.fiscal && (
+                      <div className="p-4 space-y-4 border-t border-gray-200">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-semibold text-gray-700 mb-1">
@@ -3181,15 +3309,35 @@ export function ClienteFormModal({ isOpen, onClose, cliente }: ClienteFormModalP
                       <option value="S">Sim (S)</option>
                       <option value="N">Não (N)</option>
                     </select>
-                  </div>
                 </div>
               </div>
             </div>
-          )}
+          </div>
+        )}
+      </div>
 
-          {/* TAB 6: CAMPOS CUSTOMIZADOS DA EMPRESA (AD_*) */}
-          {tab === 'customizados' && (
-            <div className="space-y-4">
+                  {/* CARD 7: CAMPOS CUSTOMIZADOS AD_* */}
+                  <div className="rounded-xl border border-gray-200 bg-white shadow-xs overflow-hidden transition-all">
+                    <button
+                      type="button"
+                      onClick={() => toggleAccordion('customizados')}
+                      className="flex w-full items-center justify-between bg-gray-50/80 px-4 py-3 text-left transition-colors hover:bg-gray-100/80 cursor-pointer"
+                    >
+                      <div className="flex items-center gap-2">
+                        {accordionsOpen.customizados ? (
+                          <ChevronDown className="h-4 w-4 text-indigo-600 shrink-0" />
+                        ) : (
+                          <ChevronRight className="h-4 w-4 text-gray-400 shrink-0" />
+                        )}
+                        <Layers className="h-4 w-4 text-indigo-600 shrink-0" />
+                        <span className="text-xs font-extrabold text-gray-900">7. Campos Customizados AD_*</span>
+                      </div>
+                      <span className="text-[11px] font-bold text-gray-600 truncate max-w-[200px] sm:max-w-xs">
+                        {adCredCli || adEndCompleto ? 'Preenchido' : 'Clique para expandir'}
+                      </span>
+                    </button>
+                    {accordionsOpen.customizados && (
+                      <div className="p-4 space-y-4 border-t border-gray-200">
               <p className="rounded-lg bg-amber-50 border border-amber-200 p-2.5 text-[11px] text-amber-800">
                 Estes campos foram customizados no dicionário Sankhya da empresa (`TGFPAR.AD_*`).
               </p>
@@ -3230,10 +3378,30 @@ export function ClienteFormModal({ isOpen, onClose, cliente }: ClienteFormModalP
               </div>
             </div>
           )}
+        </div>
 
-          {/* TAB 8: ANEXOS & DOCUMENTOS (TSIANX) */}
-          {tab === 'anexos' && (
-            <div className="space-y-5">
+                  {/* CARD 8: ANEXOS & DOCUMENTOS TSIANX */}
+                  <div className="rounded-xl border border-gray-200 bg-white shadow-xs overflow-hidden transition-all">
+                    <button
+                      type="button"
+                      onClick={() => toggleAccordion('anexos')}
+                      className="flex w-full items-center justify-between bg-gray-50/80 px-4 py-3 text-left transition-colors hover:bg-gray-100/80 cursor-pointer"
+                    >
+                      <div className="flex items-center gap-2">
+                        {accordionsOpen.anexos ? (
+                          <ChevronDown className="h-4 w-4 text-indigo-600 shrink-0" />
+                        ) : (
+                          <ChevronRight className="h-4 w-4 text-gray-400 shrink-0" />
+                        )}
+                        <Paperclip className="h-4 w-4 text-indigo-600 shrink-0" />
+                        <span className="text-xs font-extrabold text-gray-900">8. Central de Anexos & Documentos (TSIANX)</span>
+                      </div>
+                      <span className="text-[11px] font-bold text-gray-600 truncate max-w-[200px] sm:max-w-xs">
+                        {anexosParceiro.length > 0 ? `${anexosParceiro.length} arquivo(s)` : 'Clique para expandir'}
+                      </span>
+                    </button>
+                    {accordionsOpen.anexos && (
+                      <div className="p-4 space-y-4 border-t border-gray-200">
               {!isEditing ? (
                 <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-xs text-amber-800 flex items-center gap-2">
                   <AlertCircle className="h-4 w-4 text-amber-600 shrink-0" />
@@ -3498,8 +3666,11 @@ export function ClienteFormModal({ isOpen, onClose, cliente }: ClienteFormModalP
                   )}
                 </>
               )}
-            </div>
-          )}
+                        </div>
+                      )}
+                    </div>
+                </div>
+              )}
 
         {/* Modal de Visualização de Anexo (Clique Duplo) */}
         {selectedAnexoView && (
@@ -3586,8 +3757,6 @@ export function ClienteFormModal({ isOpen, onClose, cliente }: ClienteFormModalP
             </div>
           </div>
         )}
-                </>
-              )}
             </>
           )}
 
@@ -3599,12 +3768,7 @@ export function ClienteFormModal({ isOpen, onClose, cliente }: ClienteFormModalP
                   <AlertCircle className="h-3.5 w-3.5" /> Modificações pendentes de salvamento
                 </span>
               )}
-              {isEditing && !isDirty && modoVisualizacao && (
-                <span className="text-[11px] font-medium text-gray-500 bg-gray-50 border border-gray-200 px-2.5 py-1 rounded-md flex items-center gap-1">
-                  <Eye className="h-3.5 w-3.5 text-blue-600" /> Dados em modo de leitura
-                </span>
-              )}
-              {isEditing && !isDirty && !modoVisualizacao && (
+              {isEditing && !isDirty && (
                 <span className="text-[11px] font-medium text-gray-400">
                   Nenhuma modificação realizada. Altere um campo para salvar.
                 </span>
@@ -3614,8 +3778,8 @@ export function ClienteFormModal({ isOpen, onClose, cliente }: ClienteFormModalP
             <div className="flex items-center gap-3 self-end sm:self-auto">
               <button
                 type="button"
-                onClick={onClose}
-                className="rounded-lg border border-gray-300 bg-white px-4 py-2 text-xs font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+                onClick={handleTentativaFechar}
+                className="rounded-lg border border-gray-300 bg-white px-4 py-2 text-xs font-medium text-gray-700 hover:bg-gray-50 transition-colors cursor-pointer"
               >
                 Cancelar
               </button>
@@ -3626,7 +3790,7 @@ export function ClienteFormModal({ isOpen, onClose, cliente }: ClienteFormModalP
                 className={`inline-flex items-center gap-2 rounded-lg px-4 py-2 text-xs font-bold transition-all ${
                   isEditing && !isDirty
                     ? 'bg-gray-200 text-gray-400 border border-gray-300 cursor-not-allowed opacity-70'
-                    : 'bg-blue-600 text-white hover:bg-blue-700 shadow-sm hover:shadow-md'
+                    : 'bg-blue-600 text-white hover:bg-blue-700 shadow-sm hover:shadow-md cursor-pointer'
                 }`}
               >
                 {isLoading ? (
@@ -3644,6 +3808,54 @@ export function ClienteFormModal({ isOpen, onClose, cliente }: ClienteFormModalP
             </div>
           </div>
         </form>
+
+        {/* Modal de Confirmação de Alterações Não Salvas ao Fechar */}
+        {showConfirmClose && (
+          <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs animate-in fade-in duration-150">
+            <div className="w-full max-w-md rounded-xl bg-white p-5 shadow-2xl space-y-4 border border-gray-200 animate-in zoom-in-95 duration-150 text-left">
+              <div className="flex items-start gap-3">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-amber-100 text-amber-600">
+                  <AlertTriangle className="h-5 w-5" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-gray-900">Descartar alterações pendentes?</h3>
+                  <p className="text-xs text-gray-600 mt-1 leading-relaxed">
+                    Você possui alterações não salvas no cadastro deste cliente. Deseja descartá-las ou salvar os dados antes de sair?
+                  </p>
+                </div>
+              </div>
+              <div className="flex flex-wrap items-center justify-end gap-2 pt-3 border-t border-gray-100">
+                <button
+                  type="button"
+                  onClick={() => setShowConfirmClose(false)}
+                  className="rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs font-bold text-gray-700 hover:bg-gray-50 transition-colors cursor-pointer"
+                >
+                  Continuar Editando
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowConfirmClose(false);
+                    onClose();
+                  }}
+                  className="rounded-lg border border-red-200 bg-red-50 px-3 py-1.5 text-xs font-bold text-red-700 hover:bg-red-100 transition-colors cursor-pointer"
+                >
+                  🗑️ Descartar
+                </button>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    setShowConfirmClose(false);
+                    await handleSubmit();
+                  }}
+                  className="rounded-lg bg-blue-600 px-3.5 py-1.5 text-xs font-bold text-white hover:bg-blue-700 transition-all shadow-xs cursor-pointer"
+                >
+                  💾 Salvar
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

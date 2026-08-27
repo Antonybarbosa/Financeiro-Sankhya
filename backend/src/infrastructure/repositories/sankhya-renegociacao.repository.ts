@@ -28,6 +28,7 @@ export class SankhyaRenegociacaoRepository {
       atuMetas: dto.prefs?.atuMetas ?? 'N',
     };
 
+    // Busca sempre o template do título original para obter CODNAT, CODCENCUS, CODTIPOPER, CODVEND etc.
     const template = await this.buscarTemplateTitulos(dto.nufins);
     const parcelsEnriquecidas = dto.parcelas.map((p) => this.enriquecerParcela(p, template));
 
@@ -55,7 +56,14 @@ export class SankhyaRenegociacaoRepository {
     );
 
     const resultado = this.parseConfirmacao(data);
-    resultado.parcelasGeradas = await this.buscarParcelasGeradas(resultado.nureneg);
+    const parcelasDoResponse = this.extractParcelasGeradasDoResponse(data?.responseBody);
+
+    if (parcelasDoResponse.length > 0) {
+      resultado.parcelasGeradas = parcelasDoResponse;
+    } else if (resultado.nureneg > 0) {
+      resultado.parcelasGeradas = await this.buscarParcelasGeradas(resultado.nureneg);
+    }
+
     resultado.nufins = resultado.parcelasGeradas.map((p) => p.nuFin);
 
     return resultado;
@@ -200,6 +208,26 @@ export class SankhyaRenegociacaoRepository {
       parcelasGeradas: [],
       raw: responseBody,
     };
+  }
+
+  private extractParcelasGeradasDoResponse(responseBody: any): ParcelaGerada[] {
+    const rawTitulos =
+      responseBody?.reneg?.titulos?.tit ||
+      responseBody?.reneg?.titulos?.ROW ||
+      responseBody?.titulos?.tit ||
+      responseBody?.titulos?.ROW ||
+      responseBody?.reneg?.parcels?.record;
+
+    if (!rawTitulos) return [];
+
+    const list = Array.isArray(rawTitulos) ? rawTitulos : [rawTitulos];
+    return list.map((t: any) => {
+      const nuFin = this.toNum(this.unwrap(t.NUFIN)) || 0;
+      const desdobramento = String(this.unwrap(t.DESDOBRAMENTO || t.DESDOB) || '');
+      const dataVencimento = String(this.unwrap(t.DTVENC || t.DTVENCIMENTO) || '');
+      const valor = this.toNum(this.unwrap(t.VLRDESDOB || t.VALOR)) || 0;
+      return { nuFin, desdobramento, dataVencimento, valor };
+    });
   }
 
   private async buscarParcelasGeradas(nureneg: number): Promise<ParcelaGerada[]> {

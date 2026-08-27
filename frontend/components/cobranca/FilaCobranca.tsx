@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { DashboardCards } from '@/components/cobranca/DashboardCards';
+import { useSearchParams } from 'next/navigation';
 import { MasterDetailView } from '@/components/cobranca/views/MasterDetailView';
 import { KanbanView } from '@/components/cobranca/views/KanbanView';
 import { TableView } from '@/components/cobranca/views/TableView';
@@ -12,9 +12,12 @@ import {
   Table,
   CheckCircle2,
   Clock,
+  MessageSquare,
+  Settings,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { TipoView } from '@/types/cobranca';
+import { WhatsAppTemplatesConfigModal } from '@/components/cobranca/WhatsAppTemplatesConfigModal';
 
 const viewOptions: { key: TipoView; label: string; icon: typeof Columns3 }[] = [
   { key: 'kanban', label: 'Atendimento', icon: KanbanSquare },
@@ -69,15 +72,17 @@ function ProgressAtendimentos() {
 }
 
 export function FilaCobranca({ apenasVencidos, defaultView = 'kanban' }: FilaCobrancaProps) {
+  const searchParams = useSearchParams();
+  const initialFiltro = (searchParams.get('filtro') as 'vencidos' | 'avencer' | 'total' | null) || null;
+
   const [view, setView] = useState<TipoView>(defaultView);
-  const [filtro, setFiltro] = useState<'vencidos' | 'avencer' | 'total' | null>(null);
+  const [filtro, setFiltro] = useState<'vencidos' | 'avencer' | 'total' | null>(initialFiltro);
+  const [configWhatsAppOpen, setConfigWhatsAppOpen] = useState(false);
 
   const showApenasVencidos = apenasVencidos || filtro === 'vencidos';
 
   return (
     <div className="space-y-4">
-      <DashboardCards activeFilter={filtro} onCardClick={setFiltro} />
-
       {view === 'kanban' && <ProgressAtendimentos />}
 
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -92,32 +97,50 @@ export function FilaCobranca({ apenasVencidos, defaultView = 'kanban' }: FilaCob
           </p>
         </div>
 
-        <div className="inline-flex rounded-lg border border-gray-200 bg-white p-1 shadow-sm">
-          {viewOptions.map((opt) => {
-            const Icon = opt.icon;
-            const isActive = view === opt.key;
-            return (
-              <button
-                key={opt.key}
-                onClick={() => setView(opt.key)}
-                className={cn(
-                  'inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-colors',
-                  isActive
-                    ? 'bg-blue-600 text-white'
-                    : 'text-gray-600 hover:bg-gray-100'
-                )}
-              >
-                <Icon className="h-3.5 w-3.5" />
-                {opt.label}
-              </button>
-            );
-          })}
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setConfigWhatsAppOpen(true)}
+            className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs font-semibold text-gray-700 shadow-xs hover:bg-gray-50 transition-colors"
+          >
+            <MessageSquare className="h-3.5 w-3.5 text-emerald-600" />
+            Templates WhatsApp
+          </button>
+
+          <div className="inline-flex rounded-lg border border-gray-200 bg-white p-1 shadow-sm">
+            {viewOptions.map((opt) => {
+              const Icon = opt.icon;
+              const isActive = view === opt.key;
+              return (
+                <button
+                  key={opt.key}
+                  onClick={() => setView(opt.key)}
+                  className={cn(
+                    'inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-colors',
+                    isActive
+                      ? 'bg-blue-600 text-white'
+                      : 'text-gray-600 hover:bg-gray-100'
+                  )}
+                >
+                  <Icon className="h-3.5 w-3.5" />
+                  {opt.label}
+                </button>
+              );
+            })}
+          </div>
         </div>
       </div>
 
       {view === 'master-detail' && <MasterDetailView />}
       {view === 'kanban' && <KanbanView />}
       {view === 'tabela' && <TableView apenasVencidos={showApenasVencidos} />}
+
+      {configWhatsAppOpen && (
+        <WhatsAppTemplatesConfigModal
+          open={configWhatsAppOpen}
+          onClose={() => setConfigWhatsAppOpen(false)}
+        />
+      )}
     </div>
   );
 }

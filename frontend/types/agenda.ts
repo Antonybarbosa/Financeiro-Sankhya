@@ -2,6 +2,7 @@ export interface Agendamento {
   nuFin: number;
   codparc: number;
   nomeParceiro: string;
+  razaoSocial?: string;
   numnota: number;
   numdupl: number | null;
   desdobramento: string;

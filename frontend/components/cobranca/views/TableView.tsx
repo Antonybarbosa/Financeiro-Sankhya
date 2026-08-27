@@ -18,6 +18,7 @@ import { ParceiroDadosExtras } from '../ParceiroDadosExtras';
 import { RenegociacaoModal } from '../RenegociacaoModal';
 import { Dialog, DialogCloseButton } from '@/components/ui/dialog';
 import { BoletoViewer } from '../BoletoViewer';
+import { WhatsAppSendModal } from '../WhatsAppSendModal';
 import {
   Loader2,
   Search,
@@ -98,28 +99,31 @@ function BoletoParceiroModal({ parceiroId, parceiroNome, onClose }: BoletoParcei
             {comBoleto.map((titulo: Titulo) => (
               <div
                 key={titulo.id}
-                className="flex items-center justify-between gap-3 rounded-lg border border-gray-100 bg-gray-50 p-3"
+                className="flex items-center justify-between gap-3 rounded-xl border border-gray-200 bg-gray-50/60 p-3.5 shadow-xs hover:border-gray-300 transition-all"
               >
                 <div className="min-w-0">
-                  <p className="text-sm font-medium text-gray-900">
-                    {titulo.numero ? `#${titulo.numero}` : `NUFIN ${titulo.id}`}
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-extrabold text-gray-900 font-mono">
+                      {titulo.numero ? `#${titulo.numero}` : `NUFIN ${titulo.id}`}
+                    </span>
                     {titulo.desdobramento && titulo.desdobramento !== '0' && (
-                      <span className="ml-1 text-xs font-normal text-gray-400">
+                      <span className="rounded bg-gray-200 px-1.5 py-0.5 text-[10px] font-bold text-gray-700">
                         Parc. {titulo.desdobramento}
                       </span>
                     )}
-                  </p>
-                  <p className="text-xs text-gray-500">
-                    Venc: {formatDate(titulo.dataVencimento)} ·{' '}
-                    <span className="font-semibold">{formatCurrency(titulo.valorEmAberto)}</span>
+                  </div>
+                  <p className="mt-1 text-xs text-gray-600 font-medium">
+                    Vencimento: <span className="font-bold text-gray-900">{formatDate(titulo.dataVencimento)}</span> ·{' '}
+                    <span className="font-extrabold text-indigo-950">{formatCurrency(titulo.valorEmAberto)}</span>
                   </p>
                 </div>
                 <button
+                  type="button"
                   onClick={() => setTituloSelecionado(titulo.id)}
-                  className="inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-gray-800 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-gray-900"
+                  className="inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-bold text-white shadow-xs transition-colors hover:bg-indigo-700 cursor-pointer"
                 >
                   <Barcode className="h-3.5 w-3.5" />
-                  Ver boleto
+                  Ver Boleto
                 </button>
               </div>
             ))}
@@ -132,6 +136,11 @@ function BoletoParceiroModal({ parceiroId, parceiroNome, onClose }: BoletoParcei
 
 export function TableView({ apenasVencidos }: TableViewProps) {
   const [selected, setSelected] = useState<FilaItem | null>(null);
+  const [whatsAppTarget, setWhatsAppTarget] = useState<{
+    parceiroId: number;
+    parceiroNome: string;
+    telefone?: string | null;
+  } | null>(null);
   const [renegociarItem, setRenegociarItem] = useState<FilaItem | null>(null);
   const [boletoItem, setBoletoItem] = useState<FilaItem | null>(null);
   const [expandidoId, setExpandidoId] = useState<number | null>(null);
@@ -286,11 +295,16 @@ export function TableView({ apenasVencidos }: TableViewProps) {
                       >
                         <td className="px-4 py-3">
                           <div>
-                            <p className="text-sm font-medium text-gray-900">
-                              {item.parceiroNome}
+                            <p className="text-sm font-bold text-gray-900">
+                              {item.razaoSocial || item.parceiroNome}
                             </p>
+                            {(item.nomeFantasia || (item.razaoSocial && item.razaoSocial !== item.parceiroNome)) && (
+                              <p className="text-xs font-medium text-gray-500">
+                                {item.nomeFantasia || item.parceiroNome}
+                              </p>
+                            )}
                             {item.cnpjCpf && (
-                              <p className="text-xs text-gray-400">{item.cnpjCpf}</p>
+                              <p className="text-[11px] text-gray-400">{item.cnpjCpf}</p>
                             )}
                           </div>
                         </td>
@@ -300,15 +314,21 @@ export function TableView({ apenasVencidos }: TableViewProps) {
                               <span className="text-xs text-gray-600">
                                 {formatPhone(item.telefone)}
                               </span>
-                              <a
-                                href={formatWhatsAppLink(item.telefone)}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                onClick={(e) => e.stopPropagation()}
-                                className="text-green-600 hover:text-green-700"
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setWhatsAppTarget({
+                                    parceiroId: item.parceiroId,
+                                    parceiroNome: item.parceiroNome,
+                                    telefone: item.telefone,
+                                  });
+                                }}
+                                className="text-green-600 hover:text-green-700 cursor-pointer"
+                                title="Enviar WhatsApp Personalizado"
                               >
                                 <MessageCircle className="h-3.5 w-3.5" />
-                              </a>
+                              </button>
                             </div>
                           ) : (
                             <span className="text-xs text-gray-300">—</span>
@@ -364,6 +384,23 @@ export function TableView({ apenasVencidos }: TableViewProps) {
                                 <ChevronDown className="h-4 w-4" />
                               )}
                             </button>
+                            {item.telefone && (
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setWhatsAppTarget({
+                                    parceiroId: item.parceiroId,
+                                    parceiroNome: item.parceiroNome,
+                                    telefone: item.telefone,
+                                  });
+                                }}
+                                title="Enviar WhatsApp Personalizado"
+                                className="rounded-md p-1 text-emerald-600 hover:bg-emerald-50 cursor-pointer"
+                              >
+                                <MessageCircle className="h-4 w-4" />
+                              </button>
+                            )}
                             <button
                               onClick={(e) => {
                                 e.stopPropagation();
@@ -464,6 +501,17 @@ export function TableView({ apenasVencidos }: TableViewProps) {
           parceiroId={boletoItem.parceiroId}
           parceiroNome={boletoItem.parceiroNome}
           onClose={() => setBoletoItem(null)}
+        />
+      )}
+
+      {/* WhatsApp modal */}
+      {whatsAppTarget && (
+        <WhatsAppSendModal
+          open={!!whatsAppTarget}
+          onClose={() => setWhatsAppTarget(null)}
+          parceiroId={whatsAppTarget.parceiroId}
+          parceiroNome={whatsAppTarget.parceiroNome}
+          telefone={whatsAppTarget.telefone}
         />
       )}
     </>

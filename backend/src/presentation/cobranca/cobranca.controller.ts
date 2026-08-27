@@ -24,6 +24,7 @@ import {
   FiltroTitulosDto,
   BoletoResponseDto,
   AtendimentoHojeResponseDto,
+  MetasPerformanceResponseDto,
 } from '../../application/dto/cobranca.dto';
 import { TipoContato, SituacaoContato } from '../../domain/entities/contato.entity';
 import { IAuthUser } from '../../domain/repositories/auth.repository.interface';
@@ -39,6 +40,18 @@ export class CobrancaController {
   @Get('dashboard/kpis')
   async getDashboardKpis(): Promise<DashboardKpisDto> {
     return this.tituloUseCases.obterKpis();
+  }
+
+  @Get('dashboard/metas-performance')
+  async getMetasPerformance(
+    @Query('mes') mes?: string,
+    @Query('ano') ano?: string,
+    @Query('codemp') codemp?: string,
+  ): Promise<MetasPerformanceResponseDto> {
+    const mesNum = mes ? parseInt(mes) : undefined;
+    const anoNum = ano ? parseInt(ano) : undefined;
+    const empNum = codemp ? parseInt(codemp) : undefined;
+    return this.tituloUseCases.obterMetasPerformance(mesNum, anoNum, empNum);
   }
 
   @Get('titulos')
@@ -148,22 +161,26 @@ export class CobrancaController {
   }
 
   @Post('contatos')
-  async createContato(@Body(ValidationPipe) dto: CreateContatoDto): Promise<ContatoResponseDto> {
-    return this.contatoUseCases.criarContato(dto);
+  async createContato(
+    @Req() req: { user: IAuthUser },
+    @Body(ValidationPipe) dto: CreateContatoDto,
+  ): Promise<ContatoResponseDto> {
+    return this.contatoUseCases.criarContato(dto, req.user);
   }
 
   @Get('contatos')
   async getContatos(
+    @Req() req: { user: IAuthUser },
     @Query('tipo') tipo?: string,
     @Query('situacao') situacao?: string,
     @Query('pendentes') pendentes?: string,
     @Query('proximas') proximas?: string,
   ): Promise<ContatoResponseDto[]> {
     if (pendentes === 'true') {
-      return this.contatoUseCases.buscarPendentes();
+      return this.contatoUseCases.buscarPendentes(req.user);
     }
     if (proximas) {
-      return this.contatoUseCases.buscarProximasChamadas(parseInt(proximas) || 7);
+      return this.contatoUseCases.buscarProximasChamadas(parseInt(proximas) || 7, req.user);
     }
     if (tipo) {
       return this.contatoUseCases.buscarPorTipo(tipo as TipoContato);

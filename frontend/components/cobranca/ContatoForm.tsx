@@ -20,6 +20,7 @@ interface ContatoFormProps {
   nuFin?: number;
   onSaved?: () => void;
   compact?: boolean;
+  onWhatsAppClick?: () => void;
 }
 
 const tipoOptions: { value: TipoContato; label: string; icon: typeof Phone }[] = [
@@ -38,6 +39,7 @@ export function ContatoForm({
   nuFin,
   onSaved,
   compact,
+  onWhatsAppClick,
 }: ContatoFormProps) {
   const criarContato = useCriarContato();
 
@@ -111,15 +113,20 @@ export function ContatoForm({
         {telefone && (
           <>
             {tipo === 'WHATSAPP' && (
-              <a
-                href={formatWhatsAppLink(telefone)}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-1.5 rounded-md bg-green-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-green-700"
+              <button
+                type="button"
+                onClick={() => {
+                  if (onWhatsAppClick) {
+                    onWhatsAppClick();
+                  } else {
+                    window.open(formatWhatsAppLink(telefone), '_blank');
+                  }
+                }}
+                className="inline-flex items-center gap-1.5 rounded-md bg-emerald-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-emerald-700 cursor-pointer"
               >
                 <MessageCircle className="h-3.5 w-3.5" />
                 Abrir WhatsApp
-              </a>
+              </button>
             )}
             {tipo === 'TELEFONE' && (
               <a
