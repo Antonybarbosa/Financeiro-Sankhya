@@ -1,12 +1,12 @@
 (function () {
   window.WhatsAppDOM = {
-    // Digita ou injeta texto no elemento contenteditable com disparo de eventos React
-    typeText: function (element, text) {
+    // 1. Simulação Humana de Digitação/Colagem para o Editor Lexical (React 18)
+    simulateHumanTyping: function (element, text) {
       if (!element) return false;
 
       element.focus();
 
-      // Limpar seleção anterior e focar
+      // Posicionar cursor e limpar seleção
       try {
         const selection = window.getSelection();
         const range = document.createRange();
@@ -15,40 +15,40 @@
         selection.addRange(range);
       } catch (e) {}
 
-      let success = false;
-
-      // Método 1: execCommand insertText (Método nativo do Chrome para ContentEditable)
+      // Passo A: Colagem via ClipboardEvent com DataTransfer real (Aceito nativamente pelo Lexical)
+      let pasteSuccess = false;
       try {
-        success = document.execCommand("insertText", false, text);
+        const dataTransfer = new DataTransfer();
+        dataTransfer.setData("text/plain", text);
+        const pasteEvt = new ClipboardEvent("paste", {
+          bubbles: true,
+          cancelable: true,
+          clipboardData: dataTransfer,
+        });
+        pasteSuccess = element.dispatchEvent(pasteEvt);
       } catch (e) {}
 
-      // Método 2: Simular Evento de Colar (Clipboard paste)
-      if (!success || !element.textContent?.trim()) {
+      // Fallback: execCommand insertText
+      if (!pasteSuccess || !element.textContent?.trim()) {
         try {
-          const dt = new DataTransfer();
-          dt.setData("text/plain", text);
-          const pasteEvt = new ClipboardEvent("paste", {
-            clipboardData: dt,
-            bubbles: true,
-            cancelable: true,
-          });
-          success = element.dispatchEvent(pasteEvt);
+          document.execCommand("insertText", false, text);
         } catch (e) {}
       }
 
-      // Método 3: Atribuição direta por TextNode
-      if (!element.textContent?.trim()) {
-        try {
-          element.innerHTML = "";
-          const textNode = document.createTextNode(text);
-          element.appendChild(textNode);
-        } catch (e) {}
-      }
-
-      // Disparar eventos de entrada do React
+      // Disparar eventos de entrada que o Lexical e o React escutam para atualizar o estado
       try {
-        element.dispatchEvent(new InputEvent("beforeinput", { bubbles: true, cancelable: true, inputType: "insertText", data: text }));
-        element.dispatchEvent(new InputEvent("input", { bubbles: true, cancelable: true, inputType: "insertText", data: text }));
+        element.dispatchEvent(new InputEvent("beforeinput", {
+          bubbles: true,
+          cancelable: true,
+          inputType: "insertText",
+          data: text,
+        }));
+        element.dispatchEvent(new InputEvent("input", {
+          bubbles: true,
+          cancelable: true,
+          inputType: "insertText",
+          data: text,
+        }));
         element.dispatchEvent(new Event("input", { bubbles: true }));
         element.dispatchEvent(new Event("change", { bubbles: true }));
       } catch (e) {}
@@ -56,7 +56,66 @@
       return true;
     },
 
-    // Executa o clique de envio ou envia tecla Enter
+    // Alias para compatibilidade
+    typeText: function (element, text) {
+      return this.simulateHumanTyping(element, text);
+    },
+
+    // 2. Simulação Humana de Clique Físico com Coordenadas Reais de Tela (React 18)
+    simulateHumanClick: function (element) {
+      if (!element) return false;
+
+      const rect = element.getBoundingClientRect();
+      const clientX = rect.left + rect.width / 2;
+      const clientY = rect.top + rect.height / 2;
+
+      const mouseOpts = {
+        bubbles: true,
+        cancelable: true,
+        view: window,
+        clientX,
+        clientY,
+        screenX: clientX,
+        screenY: clientY,
+        button: 0,
+        buttons: 1,
+      };
+
+      const pointerOpts = {
+        ...mouseOpts,
+        pointerId: 1,
+        pointerType: "mouse",
+        isPrimary: true,
+        width: 1,
+        height: 1,
+        pressure: 0.5,
+      };
+
+      // Cadeia física: pointerover ⟶ mouseover ⟶ pointerdown ⟶ mousedown ⟶ focus ⟶ pointerup ⟶ mouseup ⟶ click
+      try {
+        element.dispatchEvent(new PointerEvent("pointerover", pointerOpts));
+        element.dispatchEvent(new MouseEvent("mouseover", mouseOpts));
+        element.dispatchEvent(new PointerEvent("pointerdown", pointerOpts));
+        element.dispatchEvent(new MouseEvent("mousedown", mouseOpts));
+        element.focus();
+        element.dispatchEvent(new PointerEvent("pointerup", pointerOpts));
+        element.dispatchEvent(new MouseEvent("mouseup", mouseOpts));
+        element.dispatchEvent(new MouseEvent("click", mouseOpts));
+        element.click();
+        console.log("[WhatsApp Skill] simulateHumanClick executado com sucesso nas coordenadas:", clientX, clientY);
+        return true;
+      } catch (e) {
+        console.warn("[WhatsApp Skill] Erro em simulateHumanClick:", e);
+        try {
+          element.click();
+          return true;
+        } catch (err) {
+          return false;
+        }
+      }
+    },
+
+    // 3. Executa o clique de envio físico ou tecla Enter
     clickSendOrPressEnter: function (messageInput) {
       // 1. Procurar botão de enviar no DOM
       const sendBtnSelectors = window.WhatsAppSelectors.sendButton;
@@ -64,13 +123,15 @@
         const btn = document.querySelector(sel);
         if (btn) {
           const target = btn.closest("button") || btn;
-          target.click();
-          console.log("[WhatsApp Skill] Botão de enviar clicado com sucesso:", sel);
-          return true;
+          const clicked = this.simulateHumanClick(target);
+          if (clicked) {
+            console.log("[WhatsApp Skill] Botão de enviar acionado via simulateHumanClick:", sel);
+            return true;
+          }
         }
       }
 
-      // 2. Disparar eventos da tecla Enter
+      // 2. Disparar eventos da tecla Enter no input como garantia
       if (messageInput) {
         messageInput.focus();
         try {
@@ -86,7 +147,7 @@
       return false;
     },
 
-    // Extrai o telefone/nome da conversa ativa
+    // 4. Extrai o telefone/nome da conversa ativa
     getActiveChatInfo: function () {
       try {
         const titleSelectors = window.WhatsAppSelectors.activeChatHeaderTitle;
