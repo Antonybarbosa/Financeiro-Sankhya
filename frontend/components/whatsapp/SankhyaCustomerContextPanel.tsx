@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { api } from '@/lib/api';
 import { useWhatsAppTemplateStore } from '@/store/whatsappTemplateStore';
 import { useAtendimentosHoje } from '@/hooks/useCobranca';
@@ -73,23 +73,27 @@ export function SankhyaCustomerContextPanel({
 
   // Estados dos inputs de texto
   const [telefoneDigitado, setTelefoneDigitado] = useState('');
-  const [isTypingPhone, setIsTypingPhone] = useState(false);
   const [mensagemEditada, setMensagemEditada] = useState('');
-  const [isTypingMensagem, setIsTypingMensagem] = useState(false);
   const [sending, setSending] = useState(false);
   const [filaBusca, setFilaBusca] = useState('');
   const [configModalOpen, setConfigModalOpen] = useState(false);
+
+  // Refs de controle para evitar sobrescrita durante digitação
+  const prevActivePhoneRef = useRef<string | null>(null);
+  const prevPartnerIdRef = useRef<number | null>(null);
+  const prevTemplateIdRef = useRef<string | null>(null);
 
   // Viewers
   const [boletoTituloId, setBoletoTituloId] = useState<number | null>(null);
   const [danfeNumNota, setDanfeNumNota] = useState<number | null>(null);
 
-  // Sincronizar o telefone digitado apenas quando activePhoneOrName mudar externamente E usuário não estiver editando
+  // Sincronizar o telefone digitado apenas quando activePhoneOrName for um novo contato diferente
   useEffect(() => {
-    if (activePhoneOrName && !isTypingPhone) {
+    if (activePhoneOrName && activePhoneOrName !== prevActivePhoneRef.current) {
+      prevActivePhoneRef.current = activePhoneOrName;
       setTelefoneDigitado(activePhoneOrName);
     }
-  }, [activePhoneOrName, isTypingPhone]);
+  }, [activePhoneOrName]);
 
   // Lista da Fila de Cobrança filtrada
   const filaAtendimento = useMemo(() => {
@@ -171,10 +175,16 @@ export function SankhyaCustomerContextPanel({
       }));
   }, [titulos, selectedIds]);
 
-  // Atualizar a mensagem apenas quando o cliente ou template mudar e não estiver digitando
+  // Atualizar a mensagem apenas quando o cliente ou template mudar de fato
   useEffect(() => {
-    if (isTypingMensagem) return;
-    if (templateAtual && cliente) {
+    if (
+      cliente &&
+      templateAtual &&
+      (prevPartnerIdRef.current !== cliente.codParc || prevTemplateIdRef.current !== templateAtual.id)
+    ) {
+      prevPartnerIdRef.current = cliente.codParc;
+      prevTemplateIdRef.current = templateAtual.id;
+
       const msg = interpolarMensagemWhatsApp(templateAtual.mensagemTemplate, {
         nomeParceiro: cliente.nomeParc,
         titulos: titulosFormatados,
@@ -184,7 +194,7 @@ export function SankhyaCustomerContextPanel({
     } else if (templateAtual && !mensagemEditada) {
       setMensagemEditada(templateAtual.mensagemTemplate || '');
     }
-  }, [cliente?.codParc, templateAtual?.id, selectedIds, isTypingMensagem]);
+  }, [cliente?.codParc, templateAtual?.id, selectedIds]);
 
   const toggleSelectId = (id: number) => {
     const next = new Set(selectedIds);
@@ -201,6 +211,7 @@ export function SankhyaCustomerContextPanel({
       return;
     }
 
+    prevActivePhoneRef.current = cleanPhone;
     whatsappBridge.navigateToPhone(cleanPhone, '', iframeRef);
     openWhatsAppWithContact(cleanPhone);
     toast.success('Pesquisando Contato', `Buscando conversa com ${telefoneDigitado} no WhatsApp...`);
@@ -220,7 +231,7 @@ export function SankhyaCustomerContextPanel({
 
     setSending(true);
     try {
-      // Navega e injeta o texto diretamente no WhatsApp Web
+      prevActivePhoneRef.current = cleanPhone;
       whatsappBridge.navigateToPhone(cleanPhone, mensagemEditada, iframeRef);
       openWhatsAppWithContact(cleanPhone);
 
@@ -245,6 +256,7 @@ export function SankhyaCustomerContextPanel({
     const cleanPhone = telefoneDigitado.replace(/\D/g, '');
 
     if (cleanPhone.length >= 8) {
+      prevActivePhoneRef.current = cleanPhone;
       whatsappBridge.navigateToPhone(cleanPhone, textoPix, iframeRef);
     } else {
       whatsappBridge.sendTextToWhatsApp(textoPix, iframeRef);
@@ -273,53 +285,112 @@ export function SankhyaCustomerContextPanel({
         <button
           type="button"
           onClick={() => setConfigModalOpen(true)}
-          className="p-1.5 text-gray-500 hover:text-emerald-700 hover:bg-white/80 rounded-lg transition-colors"
-          title="Configurar Modelos de Mensagem"
+          className="p-1 rounded-md text-gray-400 hover:text-emerald-700 hover:bg-emerald-50 transition-colors"
+          title="Configurar Templates de WhatsApp"
         >
-          <Settings className="h-4 w-4" />
+          <Settings className="h-3.5 w-3.5" />
         </button>
       </div>
 
-      {/* PARTE SUPERIOR: Detalhes do Cliente e Caixa de Envio */}
-      <div className="p-3 space-y-3 border-b border-gray-200 bg-white">
+      <div className="p-3 space-y-3">
+        {/* Bloco 1: Fila de Atendimento do Dia */}
+        <div className="space-y-1.5">
+          <div className="flex items-center justify-between">
+            <span className="text-[10px] font-extrabold uppercase tracking-wider text-gray-400 flex items-center gap-1">
+              <ListOrdered className="h-3 w-3 text-emerald-600" />
+              Fila de Atendimento ({filaAtendimento.length})
+            </span>
+            <span className="text-[9px] font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-100">
+              Hoje
+            </span>
+          </div>
+
+          <div className="relative">
+            <Search className="h-3 w-3 absolute left-2 top-2 text-gray-400" />
+            <input
+              type="text"
+              placeholder="Filtrar por nome, tel ou CPF..."
+              value={filaBusca}
+              onChange={(e) => setFilaBusca(e.target.value)}
+              className="w-full pl-6.5 pr-2 py-1 text-[11px] bg-gray-50/80 border border-gray-200 rounded-md focus:outline-none focus:border-emerald-500 focus:bg-white transition-colors"
+            />
+          </div>
+
+          {loadingFila ? (
+            <div className="py-2 text-center text-gray-400 text-xs flex items-center justify-center gap-1">
+              <Loader2 className="h-3 w-3 animate-spin text-emerald-600" />
+              Carregando fila...
+            </div>
+          ) : filaAtendimento.length === 0 ? (
+            <div className="py-2 text-center text-gray-400 text-[11px]">
+              Nenhum contato na fila.
+            </div>
+          ) : (
+            <div className="max-h-32 overflow-y-auto space-y-1 pr-1">
+              {filaAtendimento.slice(0, 15).map((item) => {
+                const isSelected = activePhoneOrName && item.telefone && (activePhoneOrName.includes(item.telefone) || item.telefone.includes(activePhoneOrName));
+                return (
+                  <div
+                    key={item.parceiroId}
+                    onClick={() => {
+                      if (item.telefone) {
+                        prevActivePhoneRef.current = item.telefone;
+                        setTelefoneDigitado(item.telefone);
+                        openWhatsAppWithContact(item.telefone, item.parceiroId, item.parceiroNome);
+                      }
+                    }}
+                    className={`p-1.5 rounded-lg border text-xs cursor-pointer transition-all ${
+                      isSelected
+                        ? 'border-emerald-500 bg-emerald-50/70 font-semibold'
+                        : 'border-gray-200 bg-white hover:bg-gray-50'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="font-bold text-gray-900 truncate text-[11px]">
+                        {item.parceiroNome}
+                      </span>
+                      <span className="text-[10px] font-black text-rose-600 shrink-0 ml-1">
+                        {item.valorVencido ? formatCurrency(item.valorVencido) : 'R$ 0,00'}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between text-[9px] text-gray-500 mt-0.5">
+                      <span>{item.telefone ? formatPhone(item.telefone) : 'Sem tel'}</span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        {/* Bloco 2: Dados do Cliente e Títulos Sankhya */}
         {loading ? (
-          <div className="flex flex-col items-center justify-center py-4 text-gray-400 gap-2">
-            <Loader2 className="h-5 w-5 animate-spin text-emerald-600" />
-            <span className="text-xs font-semibold">Consultando Sankhya...</span>
+          <div className="py-6 text-center text-gray-400 text-xs flex flex-col items-center justify-center gap-1.5">
+            <Loader2 className="h-4 w-4 animate-spin text-emerald-600" />
+            <span>Identificando cliente no Sankhya...</span>
           </div>
         ) : cliente ? (
           <>
-            {/* Card do Cliente Identificado */}
-            <div className="rounded-xl border border-gray-200 bg-white p-2.5 shadow-2xs space-y-1.5">
-              <div className="flex items-start justify-between">
-                <div className="min-w-0 pr-1">
-                  <h4 className="text-xs font-bold text-gray-900 leading-tight truncate">
-                    {cliente.nomeParc}
-                  </h4>
-                  <p className="text-[10px] text-gray-500 font-mono">
-                    Cód: {cliente.codParc} • {cliente.cnpjCpf}
-                  </p>
-                </div>
-                <span className="inline-flex items-center rounded-full bg-emerald-50 px-2 py-0.5 text-[9px] font-extrabold text-emerald-700 border border-emerald-200 shrink-0">
-                  {cliente.situacao === 'A' ? 'Ativo' : 'Sankhya'}
+            <div className="rounded-lg bg-gray-50 p-2 border border-gray-200/80 space-y-1 text-xs">
+              <div className="flex items-center justify-between">
+                <span className="font-bold text-gray-900 truncate text-xs">{cliente.nomeParc}</span>
+                <span className="text-[9px] font-bold text-emerald-800 bg-emerald-100/60 px-1 rounded">
+                  Cód: {cliente.codParc}
                 </span>
               </div>
-
-              <div className="grid grid-cols-2 gap-1.5 text-[10px] pt-1 border-t border-gray-100">
+              <div className="grid grid-cols-2 gap-1 text-[10px] text-gray-500 pt-0.5 border-t border-gray-200/50">
                 <div>
-                  <span className="text-gray-400 block">Telefone:</span>
-                  <span className="font-semibold text-gray-800">{formatPhone(cliente.telefone)}</span>
+                  <span className="text-gray-400">CPF/CNPJ: </span>
+                  <span className="font-medium text-gray-700">{cliente.cnpjCpf || 'N/D'}</span>
                 </div>
                 <div>
-                  <span className="text-gray-400 block">Limite de Crédito:</span>
-                  <span className="font-semibold text-gray-800">
-                    {cliente.limiteCredito ? formatCurrency(cliente.limiteCredito) : 'Ilimitado'}
-                  </span>
+                  <span className="text-gray-400">Situação: </span>
+                  <span className="font-medium text-emerald-700">{cliente.situacao || 'Ativo'}</span>
                 </div>
               </div>
             </div>
 
-            {/* Resumo de Títulos em Aberto */}
+            {/* Lista de Títulos em Aberto */}
             <div className="space-y-1">
               <div className="flex items-center justify-between">
                 <span className="text-[10px] font-extrabold uppercase tracking-wider text-gray-400">
@@ -394,19 +465,12 @@ export function SankhyaCustomerContextPanel({
                 <Phone className="h-3.5 w-3.5 text-emerald-600" />
                 Telefone Destinatário (WhatsApp):
               </span>
-              <span className="text-[10px] text-gray-400 font-normal">
-                {cliente ? 'Cliente Vinculado' : 'Digite o número'}
-              </span>
             </label>
             <div className="flex items-center gap-1">
               <input
                 type="text"
                 value={telefoneDigitado}
-                onFocus={() => setIsTypingPhone(true)}
-                onChange={(e) => {
-                  setIsTypingPhone(true);
-                  setTelefoneDigitado(e.target.value);
-                }}
+                onChange={(e) => setTelefoneDigitado(e.target.value)}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') {
                     e.preventDefault();
@@ -439,11 +503,7 @@ export function SankhyaCustomerContextPanel({
             <textarea
               rows={4}
               value={mensagemEditada}
-              onFocus={() => setIsTypingMensagem(true)}
-              onChange={(e) => {
-                setIsTypingMensagem(true);
-                setMensagemEditada(e.target.value);
-              }}
+              onChange={(e) => setMensagemEditada(e.target.value)}
               className="w-full rounded-lg border border-gray-300 p-2 text-xs font-sans text-gray-900 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 focus:outline-none leading-relaxed bg-white shadow-2xs"
               placeholder="Digite a mensagem para enviar no WhatsApp..."
             />
