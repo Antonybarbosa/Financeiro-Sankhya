@@ -13,6 +13,7 @@ import { ContatoUseCases } from '../../application/use-cases/contato.use-cases';
 import { SankhyaGateway } from '../../infrastructure/sankhya/sankhya.gateway';
 import { TipoContato, SituacaoContato } from '../../domain/entities/contato.entity';
 import { StatusTitulo } from '../../domain/entities/titulo.entity';
+import { Public } from '../auth/public.decorator';
 
 @Controller('api/whatsapp')
 export class WhatsAppController {
@@ -26,6 +27,7 @@ export class WhatsAppController {
   /**
    * Busca um parceiro no Sankhya pelo número de telefone (Formatado ou apenas dígitos).
    */
+  @Public()
   @Get('cliente-por-telefone')
   async buscarClientePorTelefone(@Query('telefone') telefone: string) {
     if (!telefone) {
@@ -86,6 +88,7 @@ export class WhatsAppController {
   /**
    * Busca títulos em aberto para o telefone fornecido
    */
+  @Public()
   @Get('titulos-por-telefone')
   async buscarTitulosPorTelefone(@Query('telefone') telefone: string) {
     const resCliente = await this.buscarClientePorTelefone(telefone);
@@ -112,6 +115,7 @@ export class WhatsAppController {
   /**
    * Registrar envio de mensagem/cobrança via WhatsApp no histórico do Sankhya
    */
+  @Public()
   @Post('registrar-historico')
   async registrarHistorico(
     @Body()

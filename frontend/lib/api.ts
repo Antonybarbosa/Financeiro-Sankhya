@@ -29,7 +29,7 @@ import {
 } from '@/types/cliente';
 import { useAuthStore } from '@/store/authStore';
 
-const api = axios.create({
+export const api = axios.create({
   baseURL: '',
   headers: {
     'Content-Type': 'application/json',

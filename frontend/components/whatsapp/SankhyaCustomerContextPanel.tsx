@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
-import axios from 'axios';
+import { api } from '@/lib/api';
 import { useWhatsAppTemplateStore } from '@/store/whatsappTemplateStore';
 import { useAtendimentosHoje } from '@/hooks/useCobranca';
 import { useWhatsAppStore } from '@/store/whatsappStore';
@@ -124,7 +124,7 @@ export function SankhyaCustomerContextPanel({
     const fetchClienteData = async () => {
       setLoading(true);
       try {
-        const resp = await axios.get('/api/whatsapp/titulos-por-telefone', {
+        const resp = await api.get('/api/whatsapp/titulos-por-telefone', {
           params: { telefone: activePhoneOrName },
         });
 
@@ -203,7 +203,7 @@ export function SankhyaCustomerContextPanel({
       whatsappBridge.sendTextToWhatsApp(mensagemEditada, iframeRef);
 
       if (cliente) {
-        await axios.post('/api/whatsapp/registrar-historico', {
+        await api.post('/api/whatsapp/registrar-historico', {
           parceiroId: cliente.codParc,
           mensagem: mensagemEditada,
         });
