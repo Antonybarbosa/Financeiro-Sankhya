@@ -1,8 +1,8 @@
 // Content script injetado em https://web.whatsapp.com/* (Top frame e Sub frames)
-// Comunicação bidirecional e Motor Unificado de Envio do WhatsApp Web
+// Comunicação bidirecional e Motor Unificado de Envio ULTRA RÁPIDO do WhatsApp Web
 
 (function () {
-  console.log("[Sankhya Bridge] Content script carregado no WhatsApp Web (Frame: " + (window.self === window.top ? "TOP" : "SUBFRAME") + ").");
+  console.log("[Sankhya Bridge] Content script ULTRA FAST carregado no WhatsApp Web (Frame: " + (window.self === window.top ? "TOP" : "SUBFRAME") + ").");
 
   let lastSelectedPhone = "";
 
@@ -42,7 +42,7 @@
     }
   }
 
-  // 3. Simula sequência completa de eventos do mouse/touch humano em um elemento
+  // 3. Simula sequência completa de eventos do mouse/touch humano em um elemento (Zero Delay)
   function simulateHumanClick(element) {
     if (!element) return;
     try {
@@ -60,8 +60,6 @@
 
       element.dispatchEvent(new PointerEvent("pointerover", opts));
       element.dispatchEvent(new MouseEvent("mouseover", opts));
-      element.dispatchEvent(new PointerEvent("pointerenter", opts));
-      element.dispatchEvent(new MouseEvent("mouseenter", opts));
       element.dispatchEvent(new PointerEvent("pointerdown", opts));
       element.dispatchEvent(new MouseEvent("mousedown", opts));
       element.focus();
@@ -73,7 +71,7 @@
     }
   }
 
-  // 4. Simula digitação humana nativa (compatível com Lexical, React 18 e DraftJS)
+  // 4. Simula digitação humana nativa instantânea (Lexical, React 18 e DraftJS)
   function simulateHumanTyping(element, text) {
     if (!element) return;
     try {
@@ -87,7 +85,7 @@
       selection.removeAllRanges();
       selection.addRange(range);
 
-      // Inserção via ClipboardEvent (Paste) para o Lexical
+      // Inserção via ClipboardEvent (Paste)
       try {
         const dataTransfer = new DataTransfer();
         dataTransfer.setData("text/plain", text);
@@ -126,9 +124,8 @@
     );
   }
 
-  // 6. Motor Unificado de Envio: Aguarda o chat estar pronto e dispara a mensagem
-  function waitForActiveChatAndSend(text, maxAttempts = 20) {
-    console.log("[Sankhya Bridge] Motor Unificado: Aguardando campo de mensagem...");
+  // 6. Motor Unificado de Envio Ultra Rápido (Polling a cada 40ms)
+  function waitForActiveChatAndSend(text, maxAttempts = 30) {
     let attempts = 0;
     const interval = setInterval(() => {
       attempts++;
@@ -136,7 +133,6 @@
 
       if (messageInput) {
         clearInterval(interval);
-        console.log("[Sankhya Bridge] Campo pronto! Injetando mensagem...");
 
         setTimeout(() => {
           simulateHumanTyping(messageInput, text);
@@ -151,7 +147,7 @@
 
             if (sendBtn) {
               simulateHumanClick(sendBtn);
-              console.log("[Sankhya Bridge] Mensagem enviada com sucesso via botão Enviar!");
+              console.log("[Sankhya Bridge] Mensagem enviada com sucesso!");
             } else {
               const enterEvent = new KeyboardEvent("keydown", {
                 key: "Enter",
@@ -161,19 +157,18 @@
                 bubbles: true,
               });
               messageInput.dispatchEvent(enterEvent);
-              console.log("[Sankhya Bridge] Mensagem enviada via tecla Enter!");
+              console.log("[Sankhya Bridge] Mensagem enviada via Enter!");
             }
-          }, 350);
-        }, 150);
+          }, 80);
+        }, 30);
 
         return;
       }
 
       if (attempts >= maxAttempts) {
         clearInterval(interval);
-        console.warn("[Sankhya Bridge] Tempo esgotado aguardando o campo de mensagem.");
       }
-    }, 250);
+    }, 40);
   }
 
   // 7. Busca um contato na lista de resultados IGNORANDO explicitamente Arquivadas
@@ -226,14 +221,14 @@
     return null;
   }
 
-  // 8. Abre qualquer telefone via busca nativa com disparo de Enter e Fallback SPA
+  // 8. Abre qualquer telefone de forma ULTRA RÁPIDA (Busca com Polling de 30ms + Fallback Imediato)
   function openChatWithoutReload(phone, text) {
     try {
       const cleanPhone = phone.replace(/\D/g, "");
       const fullPhone = cleanPhone.length <= 11 ? "55" + cleanPhone : cleanPhone;
       const shortDigits = cleanPhone.length > 8 ? cleanPhone.slice(-8) : cleanPhone;
 
-      console.log("[Sankhya Bridge] Buscando conversa para:", fullPhone);
+      console.log("[Sankhya Bridge] Busca Ultra Rápida para:", fullPhone);
 
       // Localiza a caixa de busca principal da barra lateral
       const searchBox =
@@ -246,13 +241,13 @@
       if (searchBox) {
         simulateHumanClick(searchBox);
 
-        // Limpa busca anterior e digita o telefone
+        // Digita imediatamente o telefone
         document.execCommand("selectAll", false, null);
         document.execCommand("insertText", false, fullPhone);
         searchBox.dispatchEvent(new InputEvent("input", { bubbles: true, inputType: "insertText", data: fullPhone }));
         searchBox.dispatchEvent(new Event("change", { bubbles: true }));
 
-        // Dispara Enter na busca para abrir o primeiro resultado correspondente
+        // Dispara Enter imediatamente (10ms)
         setTimeout(() => {
           const enterEvent = new KeyboardEvent("keydown", {
             key: "Enter",
@@ -262,9 +257,9 @@
             bubbles: true,
           });
           searchBox.dispatchEvent(enterEvent);
-        }, 150);
+        }, 10);
 
-        // Monitora a lista para clicar no contato correspondente
+        // Polling ultra rápido a cada 30ms (localiza e clica sem delay perceptível)
         let searchAttempts = 0;
         const searchInterval = setInterval(() => {
           searchAttempts++;
@@ -274,7 +269,7 @@
           if (contactItem) {
             clearInterval(searchInterval);
             simulateHumanClick(contactItem);
-            console.log("[Sankhya Bridge] Contato aberto na lista com sucesso!");
+            console.log("[Sankhya Bridge] Contato aberto instantaneamente!");
 
             if (text) {
               waitForActiveChatAndSend(text);
@@ -282,28 +277,27 @@
             return;
           }
 
-          // Se após 1.5s não abriu pela busca lateral, aciona o deep link SPA interno
-          if (searchAttempts >= 6) {
+          // Se após 300ms (10 tentativas de 30ms) não achou na busca, aciona o deep link SPA imediatamente
+          if (searchAttempts >= 10) {
             clearInterval(searchInterval);
-            console.log("[Sankhya Bridge] Abrindo via deep link SPA para:", fullPhone);
             const a = document.createElement("a");
             a.href = `https://web.whatsapp.com/send?phone=${fullPhone}${text ? `&text=${encodeURIComponent(text)}` : ""}`;
             document.body.appendChild(a);
             a.click();
-            setTimeout(() => a.remove(), 400);
+            setTimeout(() => a.remove(), 200);
 
             if (text) {
               waitForActiveChatAndSend(text);
             }
           }
-        }, 250);
+        }, 30);
       } else {
-        // Fallback SPA
+        // Fallback SPA Imediato
         const a = document.createElement("a");
         a.href = `https://web.whatsapp.com/send?phone=${fullPhone}${text ? `&text=${encodeURIComponent(text)}` : ""}`;
         document.body.appendChild(a);
         a.click();
-        setTimeout(() => a.remove(), 400);
+        setTimeout(() => a.remove(), 200);
 
         if (text) {
           waitForActiveChatAndSend(text);
@@ -338,8 +332,8 @@
           setTimeout(() => {
             simulateHumanClick(sendBtn);
             console.log("[Sankhya Bridge] Envio automático concluído no deep link!");
-          }, 600);
-        } else if (messageInput && attempts >= 8 && messageInput.innerText.trim().length > 0) {
+          }, 200);
+        } else if (messageInput && attempts >= 6 && messageInput.innerText.trim().length > 0) {
           clearInterval(interval);
           const enterEvent = new KeyboardEvent("keydown", {
             key: "Enter",
@@ -352,10 +346,10 @@
           console.log("[Sankhya Bridge] Envio automático via Enter concluído!");
         }
 
-        if (attempts >= 50) {
+        if (attempts >= 40) {
           clearInterval(interval);
         }
-      }, 500);
+      }, 100);
     }
   }
 
@@ -407,5 +401,5 @@
   setTimeout(() => {
     notifyBridgeReady();
     checkAutoSendUrl();
-  }, 500);
+  }, 300);
 })();
