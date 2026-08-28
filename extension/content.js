@@ -45,6 +45,33 @@
     }
   }
 
+  // Auto-enviar quando a página for aberta através de deep link /send?phone=...&text=...
+  function checkAutoSendUrl() {
+    if (window.location.href.includes("send?phone=") || window.location.href.includes("send/?phone=")) {
+      let attempts = 0;
+      const interval = setInterval(() => {
+        attempts++;
+        const sendBtn =
+          document.querySelector("#main footer button[aria-label*='Enviar']") ||
+          document.querySelector("#main footer button[aria-label*='Send']") ||
+          document.querySelector("#main footer span[data-icon='send']") ||
+          document.querySelector("#main footer button:has(span[data-icon='send'])");
+
+        if (sendBtn) {
+          clearInterval(interval);
+          setTimeout(() => {
+            sendBtn.click();
+            console.log("[Sankhya Bridge] Mensagem enviada automaticamente no novo chat!");
+          }, 600);
+        }
+
+        if (attempts >= 40) {
+          clearInterval(interval);
+        }
+      }, 500);
+    }
+  }
+
   // Monitorar mudanças no chat ativo a cada 1 segundo
   setInterval(() => {
     notifyBridgeReady();
@@ -142,6 +169,14 @@
       if (text) {
         sendMessageToActiveChat(text);
       }
+    } else if (event.data.type === "SANKHYA_NAVIGATE_PHONE") {
+      const { phone, text } = event.data;
+      if (phone) {
+        const cleanPhone = phone.replace(/\D/g, "");
+        const fullPhone = cleanPhone.length <= 11 ? "55" + cleanPhone : cleanPhone;
+        const targetUrl = `https://web.whatsapp.com/send?phone=${fullPhone}${text ? `&text=${encodeURIComponent(text)}` : ""}`;
+        window.location.href = targetUrl;
+      }
     } else if (event.data.type === "SANKHYA_REQUEST_CURRENT_CHAT") {
       const phone = extractActiveChatPhone();
       try {
@@ -153,6 +188,9 @@
     }
   });
 
-  // Notificar assim que carregar
-  setTimeout(notifyBridgeReady, 500);
+  // Notificar assim que carregar e monitorar auto-send
+  setTimeout(() => {
+    notifyBridgeReady();
+    checkAutoSendUrl();
+  }, 500);
 })();

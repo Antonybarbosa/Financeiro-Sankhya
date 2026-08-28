@@ -33,7 +33,8 @@ import {
   ChevronRight,
   Clock,
   PhoneCall,
-  MessageSquare,
+  UserPlus,
+  ArrowRight,
 } from 'lucide-react';
 import { WhatsAppTemplatesConfigModal } from '@/components/cobranca/WhatsAppTemplatesConfigModal';
 
@@ -79,6 +80,11 @@ export function SankhyaCustomerContextPanel({
   const { templates, templateAtivoId, setTemplateAtivoId } = useWhatsAppTemplateStore();
   const { openWhatsAppWithContact } = useWhatsAppStore();
   const { data: atendimentosData, isLoading: loadingFila } = useAtendimentosHoje();
+
+  // Enviar para número específico
+  const [mostrarEnvioNumero, setMostrarEnvioNumero] = useState(false);
+  const [numeroEspecifico, setNumeroEspecifico] = useState('');
+  const [buscandoNumero, setBuscandoNumero] = useState(false);
 
   const [filaBusca, setFilaBusca] = useState('');
   const [configModalOpen, setConfigModalOpen] = useState(false);
@@ -224,6 +230,33 @@ export function SankhyaCustomerContextPanel({
     toast.success('PIX Enviado!', 'Dados do PIX injetados e disparados no chat do WhatsApp.');
   };
 
+  // Abrir conversa para um número específico
+  const handleAbrirNumeroEspecifico = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const clean = numeroEspecifico.replace(/\D/g, '');
+    if (clean.length < 8) {
+      toast.error('Número inválido', 'Digite o DDD e o número do WhatsApp.');
+      return;
+    }
+
+    setBuscandoNumero(true);
+    try {
+      // 1. Notifica a ponte para carregar o número no WhatsApp Web
+      whatsappBridge.navigateToPhone(clean, mensagemEditada, iframeRef);
+
+      // 2. Atualiza o estado global
+      openWhatsAppWithContact(clean);
+
+      toast.success('Abrindo Conversa', `Carregando chat com ${numeroEspecifico} no WhatsApp...`);
+      setMostrarEnvioNumero(false);
+      setNumeroEspecifico('');
+    } catch (err) {
+      toast.error('Erro ao abrir', 'Não foi possível carregar o número.');
+    } finally {
+      setBuscandoNumero(false);
+    }
+  };
+
   return (
     <div className="h-full flex flex-col bg-white border-l border-gray-200 overflow-y-auto">
       {/* Header do Painel Contextual */}
@@ -242,15 +275,65 @@ export function SankhyaCustomerContextPanel({
           </div>
         </div>
 
-        <button
-          type="button"
-          onClick={() => setConfigModalOpen(true)}
-          className="p-1.5 text-gray-500 hover:text-emerald-700 hover:bg-white/80 rounded-lg transition-colors"
-          title="Configurar Modelos de Mensagem"
-        >
-          <Settings className="h-4 w-4" />
-        </button>
+        <div className="flex items-center gap-1">
+          <button
+            type="button"
+            onClick={() => setMostrarEnvioNumero(!mostrarEnvioNumero)}
+            className={`p-1.5 rounded-lg transition-colors text-xs font-bold flex items-center gap-1 ${
+              mostrarEnvioNumero ? 'bg-emerald-600 text-white' : 'text-gray-600 hover:bg-white/80'
+            }`}
+            title="Enviar para número específico"
+          >
+            <UserPlus className="h-4 w-4" />
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setConfigModalOpen(true)}
+            className="p-1.5 text-gray-500 hover:text-emerald-700 hover:bg-white/80 rounded-lg transition-colors"
+            title="Configurar Modelos de Mensagem"
+          >
+            <Settings className="h-4 w-4" />
+          </button>
+        </div>
       </div>
+
+      {/* Caixa de Envio para Número Específico (Collapsible) */}
+      {mostrarEnvioNumero && (
+        <form onSubmit={handleAbrirNumeroEspecifico} className="p-3 bg-gray-900 text-white border-b border-gray-800 space-y-2">
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] font-extrabold text-emerald-400 uppercase tracking-wider">
+              Enviar para Número Específico
+            </span>
+            <button
+              type="button"
+              onClick={() => setMostrarEnvioNumero(false)}
+              className="text-[10px] text-gray-400 hover:text-white"
+            >
+              Fechar
+            </button>
+          </div>
+
+          <div className="flex items-center gap-1.5">
+            <input
+              type="text"
+              placeholder="DDD + Número (ex: 11 99999-8888)..."
+              value={numeroEspecifico}
+              onChange={(e) => setNumeroEspecifico(e.target.value)}
+              className="flex-1 rounded-lg bg-gray-800 border border-gray-700 px-2.5 py-1.5 text-xs text-white placeholder-gray-400 focus:border-emerald-500 focus:outline-none"
+              autoFocus
+            />
+            <button
+              type="submit"
+              disabled={buscandoNumero || !numeroEspecifico.trim()}
+              className="rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-extrabold text-white hover:bg-emerald-700 disabled:opacity-50 transition-colors shrink-0 flex items-center gap-1"
+            >
+              {buscandoNumero ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ArrowRight className="h-3.5 w-3.5" />}
+              Abrir
+            </button>
+          </div>
+        </form>
+      )}
 
       {/* PARTE SUPERIOR: Detalhes do Cliente e Caixa de Envio */}
       <div className="p-3 space-y-3 border-b border-gray-200 bg-white">

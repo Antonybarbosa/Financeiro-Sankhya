@@ -67,6 +67,31 @@ class WhatsAppBridge {
     }
   }
 
+  public navigateToPhone(phone: string, text?: string, iframeRef?: HTMLIFrameElement | null) {
+    const payload = { type: 'SANKHYA_NAVIGATE_PHONE', phone, text: text || '' };
+
+    if (typeof document !== 'undefined') {
+      const iframes = document.querySelectorAll('iframe');
+      iframes.forEach((ifr) => {
+        try {
+          if (ifr.contentWindow) {
+            ifr.contentWindow.postMessage(payload, '*');
+          }
+        } catch (e) {}
+      });
+    }
+
+    if (iframeRef && iframeRef.contentWindow) {
+      try {
+        iframeRef.contentWindow.postMessage(payload, '*');
+      } catch (e) {}
+    }
+
+    if (typeof window !== 'undefined') {
+      window.postMessage(payload, '*');
+    }
+  }
+
   public isExtensionActive() {
     return this.extensionActive;
   }
