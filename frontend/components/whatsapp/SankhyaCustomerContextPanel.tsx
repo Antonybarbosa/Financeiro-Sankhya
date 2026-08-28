@@ -73,7 +73,9 @@ export function SankhyaCustomerContextPanel({
 
   // Estados dos inputs de texto
   const [telefoneDigitado, setTelefoneDigitado] = useState('');
+  const [isTypingPhone, setIsTypingPhone] = useState(false);
   const [mensagemEditada, setMensagemEditada] = useState('');
+  const [isTypingMensagem, setIsTypingMensagem] = useState(false);
   const [sending, setSending] = useState(false);
   const [filaBusca, setFilaBusca] = useState('');
   const [configModalOpen, setConfigModalOpen] = useState(false);
@@ -82,12 +84,12 @@ export function SankhyaCustomerContextPanel({
   const [boletoTituloId, setBoletoTituloId] = useState<number | null>(null);
   const [danfeNumNota, setDanfeNumNota] = useState<number | null>(null);
 
-  // Sincronizar o telefone digitado apenas quando activePhoneOrName mudar externamente
+  // Sincronizar o telefone digitado apenas quando activePhoneOrName mudar externamente E usuário não estiver editando
   useEffect(() => {
-    if (activePhoneOrName) {
+    if (activePhoneOrName && !isTypingPhone) {
       setTelefoneDigitado(activePhoneOrName);
     }
-  }, [activePhoneOrName]);
+  }, [activePhoneOrName, isTypingPhone]);
 
   // Lista da Fila de Cobrança filtrada
   const filaAtendimento = useMemo(() => {
@@ -169,8 +171,9 @@ export function SankhyaCustomerContextPanel({
       }));
   }, [titulos, selectedIds]);
 
-  // Atualizar a mensagem apenas quando o cliente ou template mudar
+  // Atualizar a mensagem apenas quando o cliente ou template mudar e não estiver digitando
   useEffect(() => {
+    if (isTypingMensagem) return;
     if (templateAtual && cliente) {
       const msg = interpolarMensagemWhatsApp(templateAtual.mensagemTemplate, {
         nomeParceiro: cliente.nomeParc,
@@ -181,7 +184,7 @@ export function SankhyaCustomerContextPanel({
     } else if (templateAtual && !mensagemEditada) {
       setMensagemEditada(templateAtual.mensagemTemplate || '');
     }
-  }, [cliente?.codParc, templateAtual?.id, selectedIds]);
+  }, [cliente?.codParc, templateAtual?.id, selectedIds, isTypingMensagem]);
 
   const toggleSelectId = (id: number) => {
     const next = new Set(selectedIds);
@@ -399,21 +402,25 @@ export function SankhyaCustomerContextPanel({
               <input
                 type="text"
                 value={telefoneDigitado}
-                onChange={(e) => setTelefoneDigitado(e.target.value)}
+                onFocus={() => setIsTypingPhone(true)}
+                onChange={(e) => {
+                  setIsTypingPhone(true);
+                  setTelefoneDigitado(e.target.value);
+                }}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') {
                     e.preventDefault();
                     handleAbrirConversaTelefone();
                   }
                 }}
-                placeholder="Ex: (11) 99999-8888 ou 5511999998888..."
-                className="flex-1 rounded-lg border border-gray-300 px-2.5 py-1.5 text-xs text-gray-900 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 focus:outline-none bg-white font-medium"
+                placeholder="Ex: 11999998888 ou 5511999998888..."
+                className="flex-1 rounded-lg border border-gray-300 px-2.5 py-1.5 text-xs text-gray-900 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 focus:outline-none bg-white font-medium shadow-2xs"
               />
               <button
                 type="button"
                 onClick={handleAbrirConversaTelefone}
                 disabled={telefoneDigitado.replace(/\D/g, '').length < 8}
-                className="rounded-lg bg-gray-100 hover:bg-emerald-100 text-gray-700 hover:text-emerald-800 border border-gray-300 px-2 py-1.5 text-xs font-bold transition-colors disabled:opacity-40 flex items-center gap-1 shrink-0"
+                className="rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 px-2.5 py-1.5 text-xs font-bold transition-colors disabled:opacity-40 flex items-center gap-1 shrink-0 shadow-2xs"
                 title="Abrir esta conversa no WhatsApp"
               >
                 <ArrowRight className="h-3.5 w-3.5" />
@@ -432,8 +439,12 @@ export function SankhyaCustomerContextPanel({
             <textarea
               rows={4}
               value={mensagemEditada}
-              onChange={(e) => setMensagemEditada(e.target.value)}
-              className="w-full rounded-lg border border-gray-300 p-2 text-xs font-sans text-gray-900 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 focus:outline-none leading-relaxed bg-white"
+              onFocus={() => setIsTypingMensagem(true)}
+              onChange={(e) => {
+                setIsTypingMensagem(true);
+                setMensagemEditada(e.target.value);
+              }}
+              className="w-full rounded-lg border border-gray-300 p-2 text-xs font-sans text-gray-900 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 focus:outline-none leading-relaxed bg-white shadow-2xs"
               placeholder="Digite a mensagem para enviar no WhatsApp..."
             />
           </div>
