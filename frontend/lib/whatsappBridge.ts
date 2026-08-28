@@ -42,10 +42,27 @@ class WhatsAppBridge {
   public sendTextToWhatsApp(text: string, iframeRef?: HTMLIFrameElement | null) {
     const payload = { type: 'SANKHYA_SEND_TEXT', text };
     
-    // Disparar para a extensão ou iframe
+    // 1. Disparar para todos os iframes do documento
+    if (typeof document !== 'undefined') {
+      const iframes = document.querySelectorAll('iframe');
+      iframes.forEach((ifr) => {
+        try {
+          if (ifr.contentWindow) {
+            ifr.contentWindow.postMessage(payload, '*');
+          }
+        } catch (e) {}
+      });
+    }
+
+    // 2. Disparar diretamente para a referência se fornecida
     if (iframeRef && iframeRef.contentWindow) {
-      iframeRef.contentWindow.postMessage(payload, '*');
-    } else if (typeof window !== 'undefined') {
+      try {
+        iframeRef.contentWindow.postMessage(payload, '*');
+      } catch (e) {}
+    }
+
+    // 3. Disparar para o window
+    if (typeof window !== 'undefined') {
       window.postMessage(payload, '*');
     }
   }

@@ -1,8 +1,8 @@
-// Content script injetado em https://web.whatsapp.com/*
+// Content script injetado em https://web.whatsapp.com/* (Top frame e Sub frames)
 // Comunicação com o sistema Financeiro Sankhya (parent frame ou web app)
 
 (function () {
-  console.log("[Sankhya Bridge] Content script carregado no WhatsApp Web.");
+  console.log("[Sankhya Bridge] Content script carregado no WhatsApp Web (Frame: " + (window.self === window.top ? "TOP" : "SUBFRAME") + ").");
 
   let lastSelectedPhone = "";
 
@@ -10,6 +10,7 @@
   function notifyBridgeReady() {
     try {
       window.parent.postMessage({ type: "SANKHYA_BRIDGE_READY" }, "*");
+      window.postMessage({ type: "SANKHYA_BRIDGE_READY" }, "*");
     } catch (e) {}
   }
 
@@ -44,9 +45,9 @@
     }
   }
 
-  // Monitorar mudanças no chat ativo a cada 1.2s
+  // Monitorar mudanças no chat ativo a cada 1 segundo
   setInterval(() => {
-    notifyBridgeReady(); // Mantém o heartbeat da extensão ativo no sistema
+    notifyBridgeReady();
     const currentChat = extractActiveChatPhone();
     if (currentChat && currentChat !== lastSelectedPhone) {
       lastSelectedPhone = currentChat;
@@ -61,9 +62,9 @@
         );
       } catch (e) {}
     }
-  }, 1200);
+  }, 1000);
 
-  // Inserir mensagem no campo de texto do WhatsApp Web e enviar de forma ultra-robusta
+  // Inserir mensagem no campo de texto do WhatsApp Web e enviar
   function sendMessageToActiveChat(text) {
     try {
       const messageInput =
@@ -73,26 +74,34 @@
 
       if (!messageInput) {
         console.warn("[Sankhya Bridge] Campo de mensagem do WhatsApp não encontrado.");
-        alert("Aviso: Abra um bate-papo no WhatsApp Web para enviar a mensagem.");
+        alert("Aviso: Abra uma conversa no WhatsApp Web para enviar a mensagem.");
         return false;
       }
 
       messageInput.focus();
 
-      // 1. Inserção nativa via execCommand
-      const success = document.execCommand("insertText", false, text);
+      // Ajusta o cursor para dentro do campo
+      const selection = window.getSelection();
+      const range = document.createRange();
+      range.selectNodeContents(messageInput);
+      range.collapse(false);
+      selection.removeAllRanges();
+      selection.addRange(range);
 
-      // 2. Fallback caso execCommand não preencha o conteúdo
-      if (!success || !messageInput.innerText.trim()) {
+      // Inserir texto nativamente
+      document.execCommand("insertText", false, text);
+
+      // Fallback caso execCommand falhe
+      if (!messageInput.innerText || !messageInput.innerText.includes(text.slice(0, 10))) {
         messageInput.innerText = text;
       }
 
-      // Disparar eventos nativos para o React do WhatsApp reconhecer a alteração no estado
+      // Disparar eventos de input para o React do WhatsApp
       messageInput.dispatchEvent(new InputEvent("beforeinput", { bubbles: true, inputType: "insertText", data: text }));
       messageInput.dispatchEvent(new Event("input", { bubbles: true }));
       messageInput.dispatchEvent(new Event("change", { bubbles: true }));
 
-      // Aguardar brevemente e efetuar o disparo (Clique no botão ou tecla Enter)
+      // Aguardar brevemente e disparar envio
       setTimeout(() => {
         const sendBtn =
           document.querySelector("#main footer button[aria-label*='Enviar']") ||
@@ -102,9 +111,9 @@
 
         if (sendBtn) {
           sendBtn.click();
-          console.log("[Sankhya Bridge] Mensagem enviada via clique no botão Enviar.");
+          console.log("[Sankhya Bridge] Mensagem enviada com sucesso!");
         } else {
-          // Fallback: disparar evento KeyDown Enter
+          // Dispara tecla Enter caso o botão não esteja visível
           const enterEvent = new KeyboardEvent("keydown", {
             key: "Enter",
             code: "Enter",
@@ -113,7 +122,7 @@
             bubbles: true,
           });
           messageInput.dispatchEvent(enterEvent);
-          console.log("[Sankhya Bridge] Mensagem enviada via simulador de tecla Enter.");
+          console.log("[Sankhya Bridge] Mensagem enviada via Enter!");
         }
       }, 350);
 
@@ -145,5 +154,5 @@
   });
 
   // Notificar assim que carregar
-  setTimeout(notifyBridgeReady, 1000);
+  setTimeout(notifyBridgeReady, 500);
 })();
