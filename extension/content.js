@@ -1,5 +1,5 @@
 // Content script injetado em https://web.whatsapp.com/* (Top frame e Sub frames)
-// Comunicação bidirecional e simulação de eventos humanos no WhatsApp Web
+// Comunicação bidirecional e Motor Unificado de Envio do WhatsApp Web
 
 (function () {
   console.log("[Sankhya Bridge] Content script carregado no WhatsApp Web (Frame: " + (window.self === window.top ? "TOP" : "SUBFRAME") + ").");
@@ -87,7 +87,7 @@
       selection.removeAllRanges();
       selection.addRange(range);
 
-      // Inserção via ClipboardEvent (Paste)
+      // Inserção via ClipboardEvent (Paste) para o Lexical
       try {
         const dataTransfer = new DataTransfer();
         dataTransfer.setData("text/plain", text);
@@ -126,8 +126,9 @@
     );
   }
 
-  // 6. Injeta o texto e aciona o envio
-  function sendMessageToActiveChat(text, maxAttempts = 15) {
+  // 6. Motor Unificado de Envio: Aguarda o chat estar pronto e dispara a mensagem
+  function waitForActiveChatAndSend(text, maxAttempts = 20) {
+    console.log("[Sankhya Bridge] Motor Unificado: Aguardando campo de mensagem...");
     let attempts = 0;
     const interval = setInterval(() => {
       attempts++;
@@ -135,41 +136,42 @@
 
       if (messageInput) {
         clearInterval(interval);
+        console.log("[Sankhya Bridge] Campo pronto! Injetando mensagem...");
 
-        // Digita a mensagem
-        simulateHumanTyping(messageInput, text);
-
-        // Dispara o clique no botão enviar após breve pausa
         setTimeout(() => {
-          const sendBtn =
-            document.querySelector("#main footer button[aria-label*='Enviar']") ||
-            document.querySelector("#main footer button[aria-label*='Send']") ||
-            document.querySelector("#main footer span[data-icon='send']") ||
-            document.querySelector("#main footer span[data-icon='wds-ic-send-filled']") ||
-            document.querySelector("#main footer button:has(span[data-icon*='send'])");
+          simulateHumanTyping(messageInput, text);
 
-          if (sendBtn) {
-            simulateHumanClick(sendBtn);
-            console.log("[Sankhya Bridge] Mensagem enviada via clique simulado no botão Enviar!");
-          } else {
-            const enterEvent = new KeyboardEvent("keydown", {
-              key: "Enter",
-              code: "Enter",
-              keyCode: 13,
-              which: 13,
-              bubbles: true,
-            });
-            messageInput.dispatchEvent(enterEvent);
-            console.log("[Sankhya Bridge] Mensagem enviada via simulador de tecla Enter!");
-          }
-        }, 350);
+          setTimeout(() => {
+            const sendBtn =
+              document.querySelector("#main footer button[aria-label*='Enviar']") ||
+              document.querySelector("#main footer button[aria-label*='Send']") ||
+              document.querySelector("#main footer span[data-icon='send']") ||
+              document.querySelector("#main footer span[data-icon='wds-ic-send-filled']") ||
+              document.querySelector("#main footer button:has(span[data-icon*='send'])");
+
+            if (sendBtn) {
+              simulateHumanClick(sendBtn);
+              console.log("[Sankhya Bridge] Mensagem enviada com sucesso via botão Enviar!");
+            } else {
+              const enterEvent = new KeyboardEvent("keydown", {
+                key: "Enter",
+                code: "Enter",
+                keyCode: 13,
+                which: 13,
+                bubbles: true,
+              });
+              messageInput.dispatchEvent(enterEvent);
+              console.log("[Sankhya Bridge] Mensagem enviada via tecla Enter!");
+            }
+          }, 350);
+        }, 150);
 
         return;
       }
 
       if (attempts >= maxAttempts) {
         clearInterval(interval);
-        console.warn("[Sankhya Bridge] Campo de mensagem não encontrado.");
+        console.warn("[Sankhya Bridge] Tempo esgotado aguardando o campo de mensagem.");
       }
     }, 250);
   }
@@ -224,13 +226,24 @@
     return null;
   }
 
-  // 8. Abre qualquer telefone via busca nativa direta (SEM CLICAR EM BOTÕES DO TOPO)
+  // 8. Abre qualquer telefone via busca nativa direta e aciona o Motor Unificado
   function openChatWithoutReload(phone, text) {
     try {
       const cleanPhone = phone.replace(/\D/g, "");
       const fullPhone = cleanPhone.length <= 11 ? "55" + cleanPhone : cleanPhone;
+      const shortDigits = cleanPhone.length > 8 ? cleanPhone.slice(-8) : cleanPhone;
 
-      console.log("[Sankhya Bridge] Buscando diretamente na caixa de pesquisa:", fullPhone);
+      console.log("[Sankhya Bridge] Motor Unificado: Abrindo conversa para:", fullPhone);
+
+      // Se o contato já for o ativo na tela, envia diretamente
+      const currentChat = extractActiveChatPhone() || "";
+      if (currentChat.includes(shortDigits)) {
+        console.log("[Sankhya Bridge] Contato já está ativo na tela. Enviando diretamente...");
+        if (text) {
+          waitForActiveChatAndSend(text);
+        }
+        return true;
+      }
 
       // Localiza a caixa de busca principal da barra lateral
       const searchBox =
@@ -260,12 +273,10 @@
           if (contactItem) {
             clearInterval(searchInterval);
             simulateHumanClick(contactItem);
-            console.log("[Sankhya Bridge] Contato correspondente aberto com sucesso!");
+            console.log("[Sankhya Bridge] Contato selecionado com sucesso!");
 
             if (text) {
-              setTimeout(() => {
-                sendMessageToActiveChat(text, 20);
-              }, 500);
+              waitForActiveChatAndSend(text);
             }
           }
 
@@ -280,7 +291,7 @@
             setTimeout(() => a.remove(), 400);
 
             if (text) {
-              sendMessageToActiveChat(text, 25);
+              waitForActiveChatAndSend(text);
             }
           }
         }, 250);
@@ -294,7 +305,7 @@
         setTimeout(() => a.remove(), 400);
 
         if (text) {
-          sendMessageToActiveChat(text, 25);
+          waitForActiveChatAndSend(text);
         }
       }
 
@@ -366,14 +377,14 @@
     }
   }, 1200);
 
-  // 11. Ouvinte de mensagens vindas da aplicação Sankhya
+  // 11. Ouvinte de mensagens vindas da aplicação Sankhya (Motor Unificado)
   window.addEventListener("message", (event) => {
     if (!event.data || typeof event.data !== "object") return;
 
     if (event.data.type === "SANKHYA_SEND_TEXT") {
       const { text } = event.data;
       if (text) {
-        sendMessageToActiveChat(text);
+        waitForActiveChatAndSend(text);
       }
     } else if (event.data.type === "SANKHYA_NAVIGATE_PHONE") {
       const { phone, text } = event.data;
