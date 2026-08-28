@@ -45,6 +45,86 @@
     }
   }
 
+  // Abrir conversa diretamente no WhatsApp Web sem recarregar o iframe
+  function openChatWithoutReload(phone, text) {
+    try {
+      const cleanPhone = phone.replace(/\D/g, "");
+      const fullPhone = cleanPhone.length <= 11 ? "55" + cleanPhone : cleanPhone;
+      const shortPhone = cleanPhone.length > 8 ? cleanPhone.slice(-8) : cleanPhone;
+
+      console.log("[Sankhya Bridge] Buscando e abrindo chat sem reload para:", fullPhone);
+
+      // 1. Localiza a barra de pesquisa de conversas do WhatsApp Web
+      const searchBox =
+        document.querySelector("#side div[contenteditable='true']") ||
+        document.querySelector("div[data-tab='3']") ||
+        document.querySelector("#side div[role='textbox']");
+
+      if (searchBox) {
+        searchBox.focus();
+        
+        // Limpa a busca existente
+        document.execCommand("selectAll", false, null);
+        document.execCommand("delete", false, null);
+
+        // Insere o número de telefone na busca
+        document.execCommand("insertText", false, fullPhone);
+        searchBox.dispatchEvent(new InputEvent("beforeinput", { bubbles: true, inputType: "insertText", data: fullPhone }));
+        searchBox.dispatchEvent(new Event("input", { bubbles: true }));
+        searchBox.dispatchEvent(new Event("change", { bubbles: true }));
+
+        // Aguarda os resultados da busca aparecerem na lista
+        let searchAttempts = 0;
+        const searchInterval = setInterval(() => {
+          searchAttempts++;
+
+          // Procura o item do contato nos resultados
+          const contactItem =
+            document.querySelector("#pane-side div[role='listitem']") ||
+            document.querySelector("#pane-side div[data-testid='cell-frame-container']") ||
+            document.querySelector("#pane-side span[title*='" + shortPhone + "']") ||
+            document.querySelector("#pane-side div[aria-label*='Conversas'] div[tabindex='-1']") ||
+            document.querySelector("#pane-side div[tabindex='0']");
+
+          if (contactItem) {
+            clearInterval(searchInterval);
+            contactItem.click();
+            console.log("[Sankhya Bridge] Chat aberto instantaneamente sem reload!");
+
+            if (text) {
+              setTimeout(() => {
+                sendMessageToActiveChat(text);
+              }, 400);
+            }
+          }
+
+          if (searchAttempts >= 12) {
+            clearInterval(searchInterval);
+            // Se não encontrou contato local, dispara o roteador interno
+            const a = document.createElement("a");
+            a.href = `https://web.whatsapp.com/send?phone=${fullPhone}${text ? `&text=${encodeURIComponent(text)}` : ""}`;
+            a.style.display = "none";
+            document.body.appendChild(a);
+            a.click();
+            setTimeout(() => a.remove(), 400);
+          }
+        }, 200);
+
+        return true;
+      } else {
+        // Fallback: âncora virtual interna
+        const a = document.createElement("a");
+        a.href = `https://web.whatsapp.com/send?phone=${fullPhone}${text ? `&text=${encodeURIComponent(text)}` : ""}`;
+        a.style.display = "none";
+        document.body.appendChild(a);
+        a.click();
+        setTimeout(() => a.remove(), 400);
+      }
+    } catch (e) {
+      console.error("[Sankhya Bridge] Erro ao abrir chat sem reload:", e);
+    }
+  }
+
   // Auto-enviar quando a página for aberta através de deep link /send?phone=...&text=...
   function checkAutoSendUrl() {
     if (window.location.href.includes("send?phone=") || window.location.href.includes("send/?phone=")) {
@@ -71,7 +151,6 @@
             console.log("[Sankhya Bridge] Mensagem enviada automaticamente no deep link!");
           }, 600);
         } else if (messageInput && attempts >= 8 && messageInput.innerText.trim().length > 0) {
-          // Se o texto já foi pré-preenchido pelo WhatsApp, simula tecla Enter para envio
           clearInterval(interval);
           const enterEvent = new KeyboardEvent("keydown", {
             key: "Enter",
@@ -119,11 +198,9 @@
         document.querySelector("footer div[contenteditable='true']");
 
       if (!messageInput) {
-        console.warn("[Sankhya Bridge] Campo de mensagem não encontrado. Abrindo via deep link se houver telefone...");
+        console.warn("[Sankhya Bridge] Campo de mensagem não encontrado. Tentando abrir chat...");
         if (lastSelectedPhone && lastSelectedPhone.replace(/\D/g, "").length >= 8) {
-          const cleanPhone = lastSelectedPhone.replace(/\D/g, "");
-          const fullPhone = cleanPhone.length <= 11 ? "55" + cleanPhone : cleanPhone;
-          window.location.href = `https://web.whatsapp.com/send?phone=${fullPhone}&text=${encodeURIComponent(text)}`;
+          openChatWithoutReload(lastSelectedPhone, text);
           return true;
         }
         alert("Aviso: Selecione um contato no WhatsApp ou digite o telefone acima para abrir a conversa.");
@@ -198,10 +275,7 @@
     } else if (event.data.type === "SANKHYA_NAVIGATE_PHONE") {
       const { phone, text } = event.data;
       if (phone) {
-        const cleanPhone = phone.replace(/\D/g, "");
-        const fullPhone = cleanPhone.length <= 11 ? "55" + cleanPhone : cleanPhone;
-        const targetUrl = `https://web.whatsapp.com/send?phone=${fullPhone}${text ? `&text=${encodeURIComponent(text)}` : ""}`;
-        window.location.href = targetUrl;
+        openChatWithoutReload(phone, text);
       }
     } else if (event.data.type === "SANKHYA_REQUEST_CURRENT_CHAT") {
       const phone = extractActiveChatPhone();

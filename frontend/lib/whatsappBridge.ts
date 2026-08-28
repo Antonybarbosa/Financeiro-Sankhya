@@ -42,7 +42,7 @@ class WhatsAppBridge {
   public sendTextToWhatsApp(text: string, iframeRef?: HTMLIFrameElement | null) {
     const payload = { type: 'SANKHYA_SEND_TEXT', text };
     
-    // 1. Disparar para todos os iframes do documento
+    // 1. Disparar para todos os iframes do documento (sem recarregar o iframe!)
     if (typeof document !== 'undefined') {
       const iframes = document.querySelectorAll('iframe');
       iframes.forEach((ifr) => {
@@ -70,36 +70,30 @@ class WhatsAppBridge {
   public navigateToPhone(phone: string, text?: string, iframeRef?: HTMLIFrameElement | null) {
     const cleanPhone = phone.replace(/\D/g, '');
     const fullPhone = cleanPhone.length <= 11 ? '55' + cleanPhone : cleanPhone;
-    const targetUrl = `https://web.whatsapp.com/send?phone=${fullPhone}${text ? `&text=${encodeURIComponent(text)}` : ''}`;
+    const payload = { type: 'SANKHYA_NAVIGATE_PHONE', phone: fullPhone, text: text || '' };
 
-    console.log('[Sankhya Bridge] Abrindo conversa com número:', fullPhone, targetUrl);
+    console.log('[Sankhya Bridge] Solicitando abertura de chat sem recarregar:', fullPhone);
 
-    // 1. Atualiza o src de todos os iframes do WhatsApp no DOM diretamente
+    // Envia instrução postMessage para o iframe (abre via busca nativa sem recarregar a página!)
     if (typeof document !== 'undefined') {
       const iframes = document.querySelectorAll('iframe');
       iframes.forEach((ifr) => {
         try {
-          if (ifr.src.includes('whatsapp.com') || ifr.title.includes('WhatsApp')) {
-            ifr.src = targetUrl;
-            console.log('[Sankhya Bridge] Iframe WhatsApp navegado com sucesso para:', targetUrl);
-          }
           if (ifr.contentWindow) {
-            ifr.contentWindow.postMessage({ type: 'SANKHYA_NAVIGATE_PHONE', phone: fullPhone, text: text || '' }, '*');
+            ifr.contentWindow.postMessage(payload, '*');
           }
         } catch (e) {}
       });
     }
 
-    // 2. Disparar na referência específica se fornecida
-    if (iframeRef) {
+    if (iframeRef && iframeRef.contentWindow) {
       try {
-        iframeRef.src = targetUrl;
+        iframeRef.contentWindow.postMessage(payload, '*');
       } catch (e) {}
     }
 
-    // 3. Disparar postMessage geral
     if (typeof window !== 'undefined') {
-      window.postMessage({ type: 'SANKHYA_NAVIGATE_PHONE', phone: fullPhone, text: text || '' }, '*');
+      window.postMessage(payload, '*');
     }
   }
 
