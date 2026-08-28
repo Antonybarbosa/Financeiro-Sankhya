@@ -68,27 +68,38 @@ class WhatsAppBridge {
   }
 
   public navigateToPhone(phone: string, text?: string, iframeRef?: HTMLIFrameElement | null) {
-    const payload = { type: 'SANKHYA_NAVIGATE_PHONE', phone, text: text || '' };
+    const cleanPhone = phone.replace(/\D/g, '');
+    const fullPhone = cleanPhone.length <= 11 ? '55' + cleanPhone : cleanPhone;
+    const targetUrl = `https://web.whatsapp.com/send?phone=${fullPhone}${text ? `&text=${encodeURIComponent(text)}` : ''}`;
 
+    console.log('[Sankhya Bridge] Abrindo conversa com número:', fullPhone, targetUrl);
+
+    // 1. Atualiza o src de todos os iframes do WhatsApp no DOM diretamente
     if (typeof document !== 'undefined') {
       const iframes = document.querySelectorAll('iframe');
       iframes.forEach((ifr) => {
         try {
+          if (ifr.src.includes('whatsapp.com') || ifr.title.includes('WhatsApp')) {
+            ifr.src = targetUrl;
+            console.log('[Sankhya Bridge] Iframe WhatsApp navegado com sucesso para:', targetUrl);
+          }
           if (ifr.contentWindow) {
-            ifr.contentWindow.postMessage(payload, '*');
+            ifr.contentWindow.postMessage({ type: 'SANKHYA_NAVIGATE_PHONE', phone: fullPhone, text: text || '' }, '*');
           }
         } catch (e) {}
       });
     }
 
-    if (iframeRef && iframeRef.contentWindow) {
+    // 2. Disparar na referência específica se fornecida
+    if (iframeRef) {
       try {
-        iframeRef.contentWindow.postMessage(payload, '*');
+        iframeRef.src = targetUrl;
       } catch (e) {}
     }
 
+    // 3. Disparar postMessage geral
     if (typeof window !== 'undefined') {
-      window.postMessage(payload, '*');
+      window.postMessage({ type: 'SANKHYA_NAVIGATE_PHONE', phone: fullPhone, text: text || '' }, '*');
     }
   }
 
