@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { api } from '@/lib/api';
 import { useWhatsAppTemplateStore } from '@/store/whatsappTemplateStore';
 import { useAtendimentosHoje } from '@/hooks/useCobranca';
@@ -23,6 +23,8 @@ import {
   QrCode,
   ListOrdered,
   Search,
+  ArrowRight,
+  ExternalLink,
 } from 'lucide-react';
 import { WhatsAppTemplatesConfigModal } from '@/components/cobranca/WhatsAppTemplatesConfigModal';
 
@@ -167,7 +169,7 @@ export function SankhyaCustomerContextPanel({
       }));
   }, [titulos, selectedIds]);
 
-  // Atualizar a mensagem apenas quando o cliente ou template mudar (sem sobrescrever a digitação do usuário)
+  // Atualizar a mensagem apenas quando o cliente ou template mudar
   useEffect(() => {
     if (templateAtual && cliente) {
       const msg = interpolarMensagemWhatsApp(templateAtual.mensagemTemplate, {
@@ -188,24 +190,36 @@ export function SankhyaCustomerContextPanel({
     setSelectedIds(next);
   };
 
+  // Abrir conversa do telefone digitado no WhatsApp Web
+  const handleAbrirConversaTelefone = () => {
+    const cleanPhone = telefoneDigitado.replace(/\D/g, '');
+    if (cleanPhone.length < 8) {
+      toast.error('Telefone Inválido', 'Digite o DDD e o número do telefone.');
+      return;
+    }
+
+    whatsappBridge.navigateToPhone(cleanPhone, '', iframeRef);
+    openWhatsAppWithContact(cleanPhone);
+    toast.success('Abrindo Conversa', `Carregando chat com ${telefoneDigitado} no WhatsApp...`);
+  };
+
   const handleEnviarMensagem = async () => {
     if (!mensagemEditada.trim()) {
       toast.error('Mensagem vazia', 'Digite uma mensagem para enviar.');
       return;
     }
 
+    const cleanPhone = telefoneDigitado.replace(/\D/g, '');
+    if (cleanPhone.length < 8) {
+      toast.error('Telefone Obrigatório', 'Informe o número de telefone do destinatário.');
+      return;
+    }
+
     setSending(true);
     try {
-      const cleanPhone = telefoneDigitado.replace(/\D/g, '');
-
-      // Se o usuário digitou um telefone específico diferente do chat aberto
-      if (cleanPhone.length >= 8 && (!activePhoneOrName || !activePhoneOrName.includes(cleanPhone.slice(-8)))) {
-        whatsappBridge.navigateToPhone(cleanPhone, mensagemEditada, iframeRef);
-        openWhatsAppWithContact(cleanPhone);
-      } else {
-        // Envia diretamente no chat ativo
-        whatsappBridge.sendTextToWhatsApp(mensagemEditada, iframeRef);
-      }
+      // Navega e injeta o texto diretamente no WhatsApp Web
+      whatsappBridge.navigateToPhone(cleanPhone, mensagemEditada, iframeRef);
+      openWhatsAppWithContact(cleanPhone);
 
       if (cliente) {
         await api.post('/api/whatsapp/registrar-historico', {
@@ -214,7 +228,7 @@ export function SankhyaCustomerContextPanel({
         });
       }
 
-      toast.success('Mensagem enviada!', 'Texto injetado e enviado no WhatsApp Web.');
+      toast.success('Enviando Mensagem!', 'Conversa aberta e texto sendo injetado no WhatsApp Web.');
     } catch (err) {
       toast.error('Erro ao enviar', 'Não foi possível registrar o atendimento.');
     } finally {
@@ -225,7 +239,13 @@ export function SankhyaCustomerContextPanel({
   const handleEnviarPix = () => {
     const vlr = totalEmAberto > 0 ? formatCurrency(totalEmAberto) : 'a combinar';
     const textoPix = `*DADOS PARA PAGAMENTO VIA PIX*\nChave PIX (CNPJ): 00.000.000/0001-00\nFavorecido: Sua Empresa LTDA\nValor: ${vlr}\nPor favor, envie o comprovante por aqui. Obrigado!`;
-    whatsappBridge.sendTextToWhatsApp(textoPix, iframeRef);
+    const cleanPhone = telefoneDigitado.replace(/\D/g, '');
+
+    if (cleanPhone.length >= 8) {
+      whatsappBridge.navigateToPhone(cleanPhone, textoPix, iframeRef);
+    } else {
+      whatsappBridge.sendTextToWhatsApp(textoPix, iframeRef);
+    }
     toast.success('PIX Enviado!', 'Dados do PIX injetados e disparados no chat do WhatsApp.');
   };
 
@@ -375,13 +395,31 @@ export function SankhyaCustomerContextPanel({
                 {cliente ? 'Cliente Vinculado' : 'Digite o número'}
               </span>
             </label>
-            <input
-              type="text"
-              value={telefoneDigitado}
-              onChange={(e) => setTelefoneDigitado(e.target.value)}
-              placeholder="Ex: (11) 99999-8888 ou 5511999998888..."
-              className="w-full rounded-lg border border-gray-300 px-2.5 py-1.5 text-xs text-gray-900 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 focus:outline-none bg-white font-medium"
-            />
+            <div className="flex items-center gap-1">
+              <input
+                type="text"
+                value={telefoneDigitado}
+                onChange={(e) => setTelefoneDigitado(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    handleAbrirConversaTelefone();
+                  }
+                }}
+                placeholder="Ex: (11) 99999-8888 ou 5511999998888..."
+                className="flex-1 rounded-lg border border-gray-300 px-2.5 py-1.5 text-xs text-gray-900 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 focus:outline-none bg-white font-medium"
+              />
+              <button
+                type="button"
+                onClick={handleAbrirConversaTelefone}
+                disabled={telefoneDigitado.replace(/\D/g, '').length < 8}
+                className="rounded-lg bg-gray-100 hover:bg-emerald-100 text-gray-700 hover:text-emerald-800 border border-gray-300 px-2 py-1.5 text-xs font-bold transition-colors disabled:opacity-40 flex items-center gap-1 shrink-0"
+                title="Abrir esta conversa no WhatsApp"
+              >
+                <ArrowRight className="h-3.5 w-3.5" />
+                Abrir
+              </button>
+            </div>
           </div>
 
           <div>

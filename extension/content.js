@@ -48,24 +48,43 @@
   // Auto-enviar quando a página for aberta através de deep link /send?phone=...&text=...
   function checkAutoSendUrl() {
     if (window.location.href.includes("send?phone=") || window.location.href.includes("send/?phone=")) {
+      console.log("[Sankhya Bridge] Deep link send?phone detectado. Aguardando renderização do chat...");
       let attempts = 0;
       const interval = setInterval(() => {
         attempts++;
+        const messageInput =
+          document.querySelector("#main footer div[contenteditable='true']") ||
+          document.querySelector("#main footer div[role='textbox']") ||
+          document.querySelector("footer div[contenteditable='true']");
+
         const sendBtn =
           document.querySelector("#main footer button[aria-label*='Enviar']") ||
           document.querySelector("#main footer button[aria-label*='Send']") ||
           document.querySelector("#main footer span[data-icon='send']") ||
-          document.querySelector("#main footer button:has(span[data-icon='send'])");
+          document.querySelector("#main footer span[data-icon='wds-ic-send-filled']") ||
+          document.querySelector("#main footer button:has(span[data-icon*='send'])");
 
         if (sendBtn) {
           clearInterval(interval);
           setTimeout(() => {
             sendBtn.click();
-            console.log("[Sankhya Bridge] Mensagem enviada automaticamente no novo chat!");
+            console.log("[Sankhya Bridge] Mensagem enviada automaticamente no deep link!");
           }, 600);
+        } else if (messageInput && attempts >= 8 && messageInput.innerText.trim().length > 0) {
+          // Se o texto já foi pré-preenchido pelo WhatsApp, simula tecla Enter para envio
+          clearInterval(interval);
+          const enterEvent = new KeyboardEvent("keydown", {
+            key: "Enter",
+            code: "Enter",
+            keyCode: 13,
+            which: 13,
+            bubbles: true,
+          });
+          messageInput.dispatchEvent(enterEvent);
+          console.log("[Sankhya Bridge] Mensagem enviada via tecla Enter no deep link.");
         }
 
-        if (attempts >= 40) {
+        if (attempts >= 50) {
           clearInterval(interval);
         }
       }, 500);
@@ -100,8 +119,14 @@
         document.querySelector("footer div[contenteditable='true']");
 
       if (!messageInput) {
-        console.warn("[Sankhya Bridge] Campo de mensagem do WhatsApp não encontrado.");
-        alert("Aviso: Abra uma conversa no WhatsApp Web para enviar a mensagem.");
+        console.warn("[Sankhya Bridge] Campo de mensagem não encontrado. Abrindo via deep link se houver telefone...");
+        if (lastSelectedPhone && lastSelectedPhone.replace(/\D/g, "").length >= 8) {
+          const cleanPhone = lastSelectedPhone.replace(/\D/g, "");
+          const fullPhone = cleanPhone.length <= 11 ? "55" + cleanPhone : cleanPhone;
+          window.location.href = `https://web.whatsapp.com/send?phone=${fullPhone}&text=${encodeURIComponent(text)}`;
+          return true;
+        }
+        alert("Aviso: Selecione um contato no WhatsApp ou digite o telefone acima para abrir a conversa.");
         return false;
       }
 
@@ -134,7 +159,8 @@
           document.querySelector("#main footer button[aria-label*='Enviar']") ||
           document.querySelector("#main footer button[aria-label*='Send']") ||
           document.querySelector("#main footer span[data-icon='send']") ||
-          document.querySelector("#main footer button:has(span[data-icon='send'])");
+          document.querySelector("#main footer span[data-icon='wds-ic-send-filled']") ||
+          document.querySelector("#main footer button:has(span[data-icon*='send'])");
 
         if (sendBtn) {
           sendBtn.click();
