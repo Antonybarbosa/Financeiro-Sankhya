@@ -52,76 +52,97 @@
       const fullPhone = cleanPhone.length <= 11 ? "55" + cleanPhone : cleanPhone;
       const shortPhone = cleanPhone.length > 8 ? cleanPhone.slice(-8) : cleanPhone;
 
-      console.log("[Sankhya Bridge] Buscando e abrindo chat sem reload para:", fullPhone);
+      console.log("[Sankhya Bridge] Abrindo conversa para:", fullPhone);
 
-      // 1. Localiza a barra de pesquisa de conversas do WhatsApp Web
-      const searchBox =
-        document.querySelector("#side div[contenteditable='true']") ||
-        document.querySelector("div[data-tab='3']") ||
-        document.querySelector("#side div[role='textbox']");
+      // 1. Tentar clicar no botão de 'Nova conversa' para abrir a busca direta de contatos
+      const newChatBtn =
+        document.querySelector("button[aria-label*='Nova conversa']") ||
+        document.querySelector("button[aria-label*='New chat']") ||
+        document.querySelector("span[data-icon='chat']") ||
+        document.querySelector("span[data-icon='new-chat-outline']") ||
+        document.querySelector("span[data-icon='plus']");
 
-      if (searchBox) {
-        searchBox.focus();
-        
-        // Limpa a busca existente
-        document.execCommand("selectAll", false, null);
-        document.execCommand("delete", false, null);
-
-        // Insere o número de telefone na busca
-        document.execCommand("insertText", false, fullPhone);
-        searchBox.dispatchEvent(new InputEvent("beforeinput", { bubbles: true, inputType: "insertText", data: fullPhone }));
-        searchBox.dispatchEvent(new Event("input", { bubbles: true }));
-        searchBox.dispatchEvent(new Event("change", { bubbles: true }));
-
-        // Aguarda os resultados da busca aparecerem na lista
-        let searchAttempts = 0;
-        const searchInterval = setInterval(() => {
-          searchAttempts++;
-
-          // Procura o item do contato nos resultados
-          const contactItem =
-            document.querySelector("#pane-side div[role='listitem']") ||
-            document.querySelector("#pane-side div[data-testid='cell-frame-container']") ||
-            document.querySelector("#pane-side span[title*='" + shortPhone + "']") ||
-            document.querySelector("#pane-side div[aria-label*='Conversas'] div[tabindex='-1']") ||
-            document.querySelector("#pane-side div[tabindex='0']");
-
-          if (contactItem) {
-            clearInterval(searchInterval);
-            contactItem.click();
-            console.log("[Sankhya Bridge] Chat aberto instantaneamente sem reload!");
-
-            if (text) {
-              setTimeout(() => {
-                sendMessageToActiveChat(text);
-              }, 400);
-            }
-          }
-
-          if (searchAttempts >= 12) {
-            clearInterval(searchInterval);
-            // Se não encontrou contato local, dispara o roteador interno
-            const a = document.createElement("a");
-            a.href = `https://web.whatsapp.com/send?phone=${fullPhone}${text ? `&text=${encodeURIComponent(text)}` : ""}`;
-            a.style.display = "none";
-            document.body.appendChild(a);
-            a.click();
-            setTimeout(() => a.remove(), 400);
-          }
-        }, 200);
-
-        return true;
-      } else {
-        // Fallback: âncora virtual interna
-        const a = document.createElement("a");
-        a.href = `https://web.whatsapp.com/send?phone=${fullPhone}${text ? `&text=${encodeURIComponent(text)}` : ""}`;
-        a.style.display = "none";
-        document.body.appendChild(a);
-        a.click();
-        setTimeout(() => a.remove(), 400);
+      if (newChatBtn) {
+        newChatBtn.click();
       }
+
+      // 2. Localiza a caixa de busca de contatos/conversas
+      setTimeout(() => {
+        const searchBox =
+          document.querySelector("#side div[contenteditable='true']") ||
+          document.querySelector("div[data-tab='3']") ||
+          document.querySelector("div[role='textbox']") ||
+          document.querySelector("#side input");
+
+        if (searchBox) {
+          searchBox.focus();
+
+          const selection = window.getSelection();
+          const range = document.createRange();
+          range.selectNodeContents(searchBox);
+          range.collapse(false);
+          selection.removeAllRanges();
+          selection.addRange(range);
+
+          // Insere o número na busca
+          document.execCommand("selectAll", false, null);
+          document.execCommand("insertText", false, fullPhone);
+
+          searchBox.dispatchEvent(new InputEvent("beforeinput", { bubbles: true, inputType: "insertText", data: fullPhone }));
+          searchBox.dispatchEvent(new Event("input", { bubbles: true }));
+          searchBox.dispatchEvent(new Event("change", { bubbles: true }));
+
+          // Aguarda os resultados da busca aparecerem na lista
+          let searchAttempts = 0;
+          const searchInterval = setInterval(() => {
+            searchAttempts++;
+
+            const contactItem =
+              document.querySelector("#pane-side div[role='listitem']") ||
+              document.querySelector("#pane-side div[data-testid='cell-frame-container']") ||
+              document.querySelector("#pane-side span[title*='" + shortPhone + "']") ||
+              document.querySelector("#pane-side div[aria-label*='Conversas'] div[tabindex='-1']") ||
+              document.querySelector("div[aria-label*='Resultados'] div[role='listitem']") ||
+              document.querySelector("#pane-side div[tabindex='0']");
+
+            if (contactItem) {
+              clearInterval(searchInterval);
+              contactItem.click();
+              console.log("[Sankhya Bridge] Chat aberto com sucesso via busca nativa!");
+
+              if (text) {
+                setTimeout(() => {
+                  sendMessageToActiveChat(text);
+                }, 400);
+              }
+            }
+
+            if (searchAttempts >= 12) {
+              clearInterval(searchInterval);
+              // Fallback: âncora virtual SPA
+              const a = document.createElement("a");
+              a.href = `https://web.whatsapp.com/send?phone=${fullPhone}${text ? `&text=${encodeURIComponent(text)}` : ""}`;
+              a.style.display = "none";
+              document.body.appendChild(a);
+              a.click();
+              setTimeout(() => a.remove(), 400);
+            }
+          }, 200);
+        } else {
+          // Fallback: âncora virtual SPA
+          const a = document.createElement("a");
+          a.href = `https://web.whatsapp.com/send?phone=${fullPhone}${text ? `&text=${encodeURIComponent(text)}` : ""}`;
+          a.style.display = "none";
+          document.body.appendChild(a);
+          a.click();
+          setTimeout(() => a.remove(), 400);
+        }
+      }, 150);
+
+      return true;
     } catch (e) {
       console.error("[Sankhya Bridge] Erro ao abrir chat sem reload:", e);
+      return false;
     }
   }
 
