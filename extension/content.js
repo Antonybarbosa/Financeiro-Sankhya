@@ -69,7 +69,6 @@
       element.dispatchEvent(new MouseEvent("mouseup", opts));
       element.dispatchEvent(new MouseEvent("click", opts));
     } catch (err) {
-      // Fallback simples
       element.click();
     }
   }
@@ -88,7 +87,7 @@
       selection.removeAllRanges();
       selection.addRange(range);
 
-      // Tenta inserção via ClipboardEvent (Paste) que o Lexical adora
+      // Inserção via ClipboardEvent (Paste)
       try {
         const dataTransfer = new DataTransfer();
         dataTransfer.setData("text/plain", text);
@@ -170,100 +169,142 @@
 
       if (attempts >= maxAttempts) {
         clearInterval(interval);
-        console.warn("[Sankhya Bridge] Campo de mensagem não encontrado. Abra um chat no WhatsApp.");
+        console.warn("[Sankhya Bridge] Campo de mensagem não encontrado.");
       }
     }, 250);
   }
 
-  // 7. Abre qualquer telefone via busca nativa/Nova Conversa do WhatsApp
+  // 7. Busca um contato na lista de resultados IGNORANDO o botão 'Arquivadas'
+  function findContactSearchResult(phoneDigits) {
+    const cleanDigits = phoneDigits.replace(/\D/g, "");
+    const shortDigits = cleanDigits.length > 8 ? cleanDigits.slice(-8) : cleanDigits;
+
+    // 1. Procurar elementos que contenham os dígitos do telefone no título
+    const matchingTitle = document.querySelector(
+      `#pane-side span[title*='${shortDigits}'], div[aria-label*='Resultados'] span[title*='${shortDigits}'], div[aria-label*='Results'] span[title*='${shortDigits}']`
+    );
+    if (matchingTitle) {
+      const container =
+        matchingTitle.closest("div[role='listitem']") ||
+        matchingTitle.closest("div[data-testid='cell-frame-container']") ||
+        matchingTitle.closest("div[tabindex='-1']") ||
+        matchingTitle;
+      return container;
+    }
+
+    // 2. Procurar itens que contenham o telefone ou botão 'Conversar com...' e IGNORAR 'Arquivadas'
+    const items = document.querySelectorAll(
+      "#pane-side div[role='listitem'], div[aria-label*='Resultados'] div[role='listitem'], #pane-side div[data-testid='cell-frame-container']"
+    );
+
+    for (const item of items) {
+      const text = item.innerText || "";
+      const textLower = text.toLowerCase();
+
+      // Ignora expressamente o botão de Arquivadas
+      if (
+        textLower.includes("arquivada") ||
+        textLower.includes("archived") ||
+        item.querySelector("span[data-icon*='archive']") ||
+        item.querySelector("button[aria-label*='Arquivada']")
+      ) {
+        continue;
+      }
+
+      // Se encontrar dígitos do contato ou texto de conversa
+      if (
+        text.replace(/\D/g, "").includes(shortDigits) ||
+        textLower.includes("conversar com") ||
+        textLower.includes("chat with")
+      ) {
+        return item;
+      }
+    }
+
+    // 3. Fallback: primeiro item que NÃO seja 'Arquivadas'
+    for (const item of items) {
+      const text = item.innerText || "";
+      const textLower = text.toLowerCase();
+      if (
+        !textLower.includes("arquivada") &&
+        !textLower.includes("archived") &&
+        !item.querySelector("span[data-icon*='archive']")
+      ) {
+        return item;
+      }
+    }
+
+    return null;
+  }
+
+  // 8. Abre qualquer telefone via busca nativa do WhatsApp sem recarregar o iframe
   function openChatWithoutReload(phone, text) {
     try {
       const cleanPhone = phone.replace(/\D/g, "");
       const fullPhone = cleanPhone.length <= 11 ? "55" + cleanPhone : cleanPhone;
-      const shortPhone = cleanPhone.length > 8 ? cleanPhone.slice(-8) : cleanPhone;
 
-      console.log("[Sankhya Bridge] Iniciando busca e abertura para:", fullPhone);
+      console.log("[Sankhya Bridge] Iniciando busca para o número:", fullPhone);
 
-      // Clica no botão de Nova Conversa
-      const newChatBtn =
-        document.querySelector("button[aria-label*='Nova conversa']") ||
-        document.querySelector("button[aria-label*='New chat']") ||
-        document.querySelector("span[data-icon='chat']") ||
-        document.querySelector("span[data-icon='new-chat-outline']") ||
-        document.querySelector("span[data-icon='plus']");
+      // Localiza a caixa de busca principal da barra lateral
+      const searchBox =
+        document.querySelector("#side div[contenteditable='true']") ||
+        document.querySelector("div[data-tab='3']") ||
+        document.querySelector("div[role='textbox']") ||
+        document.querySelector("#side input");
 
-      if (newChatBtn) {
-        simulateHumanClick(newChatBtn);
-      }
+      if (searchBox) {
+        simulateHumanClick(searchBox);
 
-      // Localiza o campo de busca
-      setTimeout(() => {
-        const searchBox =
-          document.querySelector("#side div[contenteditable='true']") ||
-          document.querySelector("div[data-tab='3']") ||
-          document.querySelector("div[role='textbox']") ||
-          document.querySelector("#side input");
+        // Digita o telefone na busca
+        simulateHumanTyping(searchBox, fullPhone);
 
-        if (searchBox) {
-          simulateHumanClick(searchBox);
+        // Monitora a lista para clicar no contato correspondente (ignorando Arquivadas)
+        let searchAttempts = 0;
+        const searchInterval = setInterval(() => {
+          searchAttempts++;
 
-          // Digita o telefone
-          simulateHumanTyping(searchBox, fullPhone);
+          const contactItem = findContactSearchResult(fullPhone);
 
-          // Monitora a lista de contatos para clicar no resultado
-          let searchAttempts = 0;
-          const searchInterval = setInterval(() => {
-            searchAttempts++;
+          if (contactItem) {
+            clearInterval(searchInterval);
+            simulateHumanClick(contactItem);
+            console.log("[Sankhya Bridge] Contato correspondente aberto com sucesso!");
 
-            const contactItem =
-              document.querySelector("#pane-side div[role='listitem']") ||
-              document.querySelector("#pane-side div[data-testid='cell-frame-container']") ||
-              document.querySelector("#pane-side span[title*='" + shortPhone + "']") ||
-              document.querySelector("#pane-side div[aria-label*='Conversas'] div[tabindex='-1']") ||
-              document.querySelector("div[aria-label*='Resultados'] div[role='listitem']") ||
-              document.querySelector("#pane-side div[tabindex='0']");
-
-            if (contactItem) {
-              clearInterval(searchInterval);
-              simulateHumanClick(contactItem);
-              console.log("[Sankhya Bridge] Contato encontrado e aberto!");
-
-              if (text) {
-                setTimeout(() => {
-                  sendMessageToActiveChat(text, 20);
-                }, 500);
-              }
+            if (text) {
+              setTimeout(() => {
+                sendMessageToActiveChat(text, 20);
+              }, 500);
             }
-
-            if (searchAttempts >= 12) {
-              clearInterval(searchInterval);
-              // Fallback SPA
-              const a = document.createElement("a");
-              a.href = `https://web.whatsapp.com/send?phone=${fullPhone}${text ? `&text=${encodeURIComponent(text)}` : ""}`;
-              a.style.display = "none";
-              document.body.appendChild(a);
-              a.click();
-              setTimeout(() => a.remove(), 400);
-
-              if (text) {
-                sendMessageToActiveChat(text, 25);
-              }
-            }
-          }, 250);
-        } else {
-          // Fallback SPA
-          const a = document.createElement("a");
-          a.href = `https://web.whatsapp.com/send?phone=${fullPhone}${text ? `&text=${encodeURIComponent(text)}` : ""}`;
-          a.style.display = "none";
-          document.body.appendChild(a);
-          a.click();
-          setTimeout(() => a.remove(), 400);
-
-          if (text) {
-            sendMessageToActiveChat(text, 25);
           }
+
+          if (searchAttempts >= 12) {
+            clearInterval(searchInterval);
+            // Fallback: âncora virtual SPA
+            const a = document.createElement("a");
+            a.href = `https://web.whatsapp.com/send?phone=${fullPhone}${text ? `&text=${encodeURIComponent(text)}` : ""}`;
+            a.style.display = "none";
+            document.body.appendChild(a);
+            a.click();
+            setTimeout(() => a.remove(), 400);
+
+            if (text) {
+              sendMessageToActiveChat(text, 25);
+            }
+          }
+        }, 250);
+      } else {
+        // Fallback SPA
+        const a = document.createElement("a");
+        a.href = `https://web.whatsapp.com/send?phone=${fullPhone}${text ? `&text=${encodeURIComponent(text)}` : ""}`;
+        a.style.display = "none";
+        document.body.appendChild(a);
+        a.click();
+        setTimeout(() => a.remove(), 400);
+
+        if (text) {
+          sendMessageToActiveChat(text, 25);
         }
-      }, 200);
+      }
 
       return true;
     } catch (e) {
@@ -272,7 +313,7 @@
     }
   }
 
-  // 8. Auto-enviar quando a página for aberta via URL send?phone=...
+  // 9. Auto-enviar quando a página for aberta via URL send?phone=...
   function checkAutoSendUrl() {
     if (window.location.href.includes("send?phone=") || window.location.href.includes("send/?phone=")) {
       console.log("[Sankhya Bridge] Deep link send?phone ativo. Aguardando chat renderizar...");
@@ -314,7 +355,7 @@
     }
   }
 
-  // 9. Heartbeat e monitor de conversa ativa
+  // 10. Heartbeat e monitor de conversa ativa
   setInterval(() => {
     notifyBridgeReady();
     const currentChat = extractActiveChatPhone();
@@ -333,7 +374,7 @@
     }
   }, 1200);
 
-  // 10. Ouvinte de mensagens vindas da aplicação Sankhya
+  // 11. Ouvinte de mensagens vindas da aplicação Sankhya
   window.addEventListener("message", (event) => {
     if (!event.data || typeof event.data !== "object") return;
 
