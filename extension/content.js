@@ -45,19 +45,23 @@
     }
   }
 
-  // Inserir mensagem no campo de texto do WhatsApp Web e enviar (SEM RECURSÃO)
-  function sendMessageToActiveChat(text) {
+  // Localiza o campo de input de mensagem no DOM com suporte a todos os motores do WhatsApp (Lexical, DraftJS, etc)
+  function findMessageInput() {
+    return (
+      document.querySelector("#main footer div[contenteditable='true']") ||
+      document.querySelector("#main footer div[data-lexical-editor='true']") ||
+      document.querySelector("#main footer div[role='textbox']") ||
+      document.querySelector("#main footer div.lexical-rich-text-input") ||
+      document.querySelector("footer div[contenteditable='true']") ||
+      document.querySelector("footer div[role='textbox']") ||
+      document.querySelector("footer div[data-lexical-editor='true']") ||
+      document.querySelector("#main footer p.selectable-text")
+    );
+  }
+
+  // Executa a inserção do texto e clique no botão de envio
+  function executeInsertAndSend(messageInput, text) {
     try {
-      const messageInput =
-        document.querySelector("#main footer div[contenteditable='true']") ||
-        document.querySelector("#main footer div[role='textbox']") ||
-        document.querySelector("footer div[contenteditable='true']");
-
-      if (!messageInput) {
-        console.warn("[Sankhya Bridge] Campo de mensagem ainda não está disponível no DOM.");
-        return false;
-      }
-
       messageInput.focus();
 
       // Ajusta o cursor para dentro do campo
@@ -72,11 +76,11 @@
       document.execCommand("insertText", false, text);
 
       // Fallback caso execCommand falhe
-      if (!messageInput.innerText || !messageInput.innerText.includes(text.slice(0, 10))) {
+      if (!messageInput.innerText || !messageInput.innerText.includes(text.slice(0, 5))) {
         messageInput.innerText = text;
       }
 
-      // Disparar eventos de input para o React do WhatsApp
+      // Disparar eventos de input para o React/Lexical do WhatsApp
       messageInput.dispatchEvent(new InputEvent("beforeinput", { bubbles: true, inputType: "insertText", data: text }));
       messageInput.dispatchEvent(new Event("input", { bubbles: true }));
       messageInput.dispatchEvent(new Event("change", { bubbles: true }));
@@ -105,12 +109,29 @@
           console.log("[Sankhya Bridge] Mensagem enviada via Enter!");
         }
       }, 350);
-
-      return true;
     } catch (e) {
-      console.error("[Sankhya Bridge] Erro ao injetar mensagem:", e);
-      return false;
+      console.error("[Sankhya Bridge] Erro ao executar envio:", e);
     }
+  }
+
+  // Inserir mensagem no campo de texto do WhatsApp Web com polling automático (aguarda a conversa abrir)
+  function sendMessageToActiveChat(text, maxAttempts = 15) {
+    let attempts = 0;
+    const interval = setInterval(() => {
+      attempts++;
+      const messageInput = findMessageInput();
+
+      if (messageInput) {
+        clearInterval(interval);
+        executeInsertAndSend(messageInput, text);
+        return;
+      }
+
+      if (attempts >= maxAttempts) {
+        clearInterval(interval);
+        console.warn("[Sankhya Bridge] Campo de mensagem não encontrado após aguardar o chat carregar.");
+      }
+    }, 200);
   }
 
   // Abrir conversa diretamente no WhatsApp Web sem recarregar o iframe
@@ -122,7 +143,7 @@
 
       console.log("[Sankhya Bridge] Abrindo conversa para:", fullPhone);
 
-      // 1. Tenta clicar no botão de 'Nova conversa'
+      // 1. Tenta clicar no botão de 'Nova conversa' para abrir a gaveta de busca
       const newChatBtn =
         document.querySelector("button[aria-label*='Nova conversa']") ||
         document.querySelector("button[aria-label*='New chat']") ||
@@ -176,12 +197,10 @@
             if (contactItem) {
               clearInterval(searchInterval);
               contactItem.click();
-              console.log("[Sankhya Bridge] Chat aberto com sucesso!");
+              console.log("[Sankhya Bridge] Chat selecionado via busca!");
 
               if (text) {
-                setTimeout(() => {
-                  sendMessageToActiveChat(text);
-                }, 600);
+                sendMessageToActiveChat(text, 20);
               }
             }
 
@@ -194,6 +213,10 @@
               document.body.appendChild(a);
               a.click();
               setTimeout(() => a.remove(), 400);
+
+              if (text) {
+                sendMessageToActiveChat(text, 25);
+              }
             }
           }, 200);
         } else {
@@ -204,12 +227,16 @@
           document.body.appendChild(a);
           a.click();
           setTimeout(() => a.remove(), 400);
+
+          if (text) {
+            sendMessageToActiveChat(text, 25);
+          }
         }
       }, 200);
 
       return true;
     } catch (e) {
-      console.error("[Sankhya Bridge] Erro ao abrir chat sem reload:", e);
+      console.error("[Sankhya Bridge] Erro ao abrir chat:", e);
       return false;
     }
   }
@@ -221,10 +248,7 @@
       let attempts = 0;
       const interval = setInterval(() => {
         attempts++;
-        const messageInput =
-          document.querySelector("#main footer div[contenteditable='true']") ||
-          document.querySelector("#main footer div[role='textbox']") ||
-          document.querySelector("footer div[contenteditable='true']");
+        const messageInput = findMessageInput();
 
         const sendBtn =
           document.querySelector("#main footer button[aria-label*='Enviar']") ||
