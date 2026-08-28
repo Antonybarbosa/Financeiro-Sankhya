@@ -226,24 +226,14 @@
     return null;
   }
 
-  // 8. Abre qualquer telefone via busca nativa direta e aciona o Motor Unificado
+  // 8. Abre qualquer telefone via busca nativa com disparo de Enter e Fallback SPA
   function openChatWithoutReload(phone, text) {
     try {
       const cleanPhone = phone.replace(/\D/g, "");
       const fullPhone = cleanPhone.length <= 11 ? "55" + cleanPhone : cleanPhone;
       const shortDigits = cleanPhone.length > 8 ? cleanPhone.slice(-8) : cleanPhone;
 
-      console.log("[Sankhya Bridge] Motor Unificado: Abrindo conversa para:", fullPhone);
-
-      // Se o contato já for o ativo na tela, envia diretamente
-      const currentChat = extractActiveChatPhone() || "";
-      if (currentChat.includes(shortDigits)) {
-        console.log("[Sankhya Bridge] Contato já está ativo na tela. Enviando diretamente...");
-        if (text) {
-          waitForActiveChatAndSend(text);
-        }
-        return true;
-      }
+      console.log("[Sankhya Bridge] Buscando conversa para:", fullPhone);
 
       // Localiza a caixa de busca principal da barra lateral
       const searchBox =
@@ -256,14 +246,25 @@
       if (searchBox) {
         simulateHumanClick(searchBox);
 
-        // Limpa busca anterior
+        // Limpa busca anterior e digita o telefone
         document.execCommand("selectAll", false, null);
-        document.execCommand("delete", false, null);
+        document.execCommand("insertText", false, fullPhone);
+        searchBox.dispatchEvent(new InputEvent("input", { bubbles: true, inputType: "insertText", data: fullPhone }));
+        searchBox.dispatchEvent(new Event("change", { bubbles: true }));
 
-        // Digita o telefone na busca
-        simulateHumanTyping(searchBox, fullPhone);
+        // Dispara Enter na busca para abrir o primeiro resultado correspondente
+        setTimeout(() => {
+          const enterEvent = new KeyboardEvent("keydown", {
+            key: "Enter",
+            code: "Enter",
+            keyCode: 13,
+            which: 13,
+            bubbles: true,
+          });
+          searchBox.dispatchEvent(enterEvent);
+        }, 150);
 
-        // Monitora a lista para clicar no contato correspondente (ignorando Arquivadas)
+        // Monitora a lista para clicar no contato correspondente
         let searchAttempts = 0;
         const searchInterval = setInterval(() => {
           searchAttempts++;
@@ -273,19 +274,20 @@
           if (contactItem) {
             clearInterval(searchInterval);
             simulateHumanClick(contactItem);
-            console.log("[Sankhya Bridge] Contato selecionado com sucesso!");
+            console.log("[Sankhya Bridge] Contato aberto na lista com sucesso!");
 
             if (text) {
               waitForActiveChatAndSend(text);
             }
+            return;
           }
 
-          if (searchAttempts >= 10) {
+          // Se após 1.5s não abriu pela busca lateral, aciona o deep link SPA interno
+          if (searchAttempts >= 6) {
             clearInterval(searchInterval);
-            // Fallback: âncora virtual SPA
+            console.log("[Sankhya Bridge] Abrindo via deep link SPA para:", fullPhone);
             const a = document.createElement("a");
             a.href = `https://web.whatsapp.com/send?phone=${fullPhone}${text ? `&text=${encodeURIComponent(text)}` : ""}`;
-            a.style.display = "none";
             document.body.appendChild(a);
             a.click();
             setTimeout(() => a.remove(), 400);
@@ -299,7 +301,6 @@
         // Fallback SPA
         const a = document.createElement("a");
         a.href = `https://web.whatsapp.com/send?phone=${fullPhone}${text ? `&text=${encodeURIComponent(text)}` : ""}`;
-        a.style.display = "none";
         document.body.appendChild(a);
         a.click();
         setTimeout(() => a.remove(), 400);
