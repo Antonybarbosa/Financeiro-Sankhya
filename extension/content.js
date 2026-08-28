@@ -44,7 +44,7 @@
     }
   }
 
-  // Monitorar mudanças no chat ativo a cada 1 segundo
+  // Monitorar mudanças no chat ativo a cada 1.2s
   setInterval(() => {
     notifyBridgeReady(); // Mantém o heartbeat da extensão ativo no sistema
     const currentChat = extractActiveChatPhone();
@@ -63,41 +63,63 @@
     }
   }, 1200);
 
-  // Inserir mensagem no campo de texto do WhatsApp Web e enviar
+  // Inserir mensagem no campo de texto do WhatsApp Web e enviar de forma ultra-robusta
   function sendMessageToActiveChat(text) {
     try {
-      // Procura a div editável do input do WhatsApp Web
-      const messageInput = document.querySelector(
-        "#main footer div[contenteditable='true']"
-      );
+      const messageInput =
+        document.querySelector("#main footer div[contenteditable='true']") ||
+        document.querySelector("#main footer div[role='textbox']") ||
+        document.querySelector("footer div[contenteditable='true']");
 
       if (!messageInput) {
-        alert("Aviso: Abra uma conversa no WhatsApp para enviar a mensagem.");
+        console.warn("[Sankhya Bridge] Campo de mensagem do WhatsApp não encontrado.");
+        alert("Aviso: Abra um bate-papo no WhatsApp Web para enviar a mensagem.");
         return false;
       }
 
       messageInput.focus();
 
-      // Inserir texto via document.execCommand para manter formatação nativa do React/WhatsApp
-      document.execCommand("insertText", false, text);
+      // 1. Inserção nativa via execCommand
+      const success = document.execCommand("insertText", false, text);
 
-      // Disparar evento de input
+      // 2. Fallback caso execCommand não preencha o conteúdo
+      if (!success || !messageInput.innerText.trim()) {
+        messageInput.innerText = text;
+      }
+
+      // Disparar eventos nativos para o React do WhatsApp reconhecer a alteração no estado
+      messageInput.dispatchEvent(new InputEvent("beforeinput", { bubbles: true, inputType: "insertText", data: text }));
       messageInput.dispatchEvent(new Event("input", { bubbles: true }));
+      messageInput.dispatchEvent(new Event("change", { bubbles: true }));
 
-      // Aguardar brevemente e clicar no botão de enviar
+      // Aguardar brevemente e efetuar o disparo (Clique no botão ou tecla Enter)
       setTimeout(() => {
-        const sendBtn = document.querySelector(
-          "#main footer button[aria-label*='Enviar']"
-        ) || document.querySelector("#main footer span[data-icon='send']");
+        const sendBtn =
+          document.querySelector("#main footer button[aria-label*='Enviar']") ||
+          document.querySelector("#main footer button[aria-label*='Send']") ||
+          document.querySelector("#main footer span[data-icon='send']") ||
+          document.querySelector("#main footer button:has(span[data-icon='send'])");
 
         if (sendBtn) {
           sendBtn.click();
+          console.log("[Sankhya Bridge] Mensagem enviada via clique no botão Enviar.");
+        } else {
+          // Fallback: disparar evento KeyDown Enter
+          const enterEvent = new KeyboardEvent("keydown", {
+            key: "Enter",
+            code: "Enter",
+            keyCode: 13,
+            which: 13,
+            bubbles: true,
+          });
+          messageInput.dispatchEvent(enterEvent);
+          console.log("[Sankhya Bridge] Mensagem enviada via simulador de tecla Enter.");
         }
-      }, 300);
+      }, 350);
 
       return true;
     } catch (e) {
-      console.error("[Sankhya Bridge] Erro ao enviar mensagem:", e);
+      console.error("[Sankhya Bridge] Erro ao injetar mensagem:", e);
       return false;
     }
   }
