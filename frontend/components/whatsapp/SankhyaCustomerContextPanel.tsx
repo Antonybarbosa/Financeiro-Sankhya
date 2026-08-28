@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { api } from '@/lib/api';
 import { useWhatsAppTemplateStore } from '@/store/whatsappTemplateStore';
 import { useAtendimentosHoje } from '@/hooks/useCobranca';
@@ -12,27 +12,17 @@ import { toast } from '@/hooks/useToast';
 import { BoletoViewer } from '@/components/cobranca/BoletoViewer';
 import { DanfeViewer } from '@/components/nfe/DanfeViewer';
 import {
-  UserCheck,
   Building2,
   Phone,
-  CreditCard,
-  AlertTriangle,
-  FileText,
   Send,
-  Copy,
   Barcode,
-  ScrollText,
   Loader2,
-  Calendar,
   CheckCircle2,
   Settings,
   Sparkles,
   QrCode,
   ListOrdered,
   Search,
-  ChevronRight,
-  Clock,
-  PhoneCall,
 } from 'lucide-react';
 import { WhatsAppTemplatesConfigModal } from '@/components/cobranca/WhatsAppTemplatesConfigModal';
 
@@ -75,23 +65,22 @@ export function SankhyaCustomerContextPanel({
   const [totalEmAberto, setTotalEmAberto] = useState(0);
 
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
-  const { templates, templateAtivoId, setTemplateAtivoId } = useWhatsAppTemplateStore();
+  const { templates, templateAtivoId } = useWhatsAppTemplateStore();
   const { openWhatsAppWithContact } = useWhatsAppStore();
   const { data: atendimentosData, isLoading: loadingFila } = useAtendimentosHoje();
 
-  // Campo de telefone editável sempre visível
-  const [telefoneDigitado, setTelefoneDigitado] = useState(activePhoneOrName || '');
-
-  const [filaBusca, setFilaBusca] = useState('');
-  const [configModalOpen, setConfigModalOpen] = useState(false);
+  // Estados dos inputs de texto
+  const [telefoneDigitado, setTelefoneDigitado] = useState('');
   const [mensagemEditada, setMensagemEditada] = useState('');
   const [sending, setSending] = useState(false);
+  const [filaBusca, setFilaBusca] = useState('');
+  const [configModalOpen, setConfigModalOpen] = useState(false);
 
   // Viewers
   const [boletoTituloId, setBoletoTituloId] = useState<number | null>(null);
   const [danfeNumNota, setDanfeNumNota] = useState<number | null>(null);
 
-  // Sincronizar o campo de telefone quando activePhoneOrName mudar
+  // Sincronizar o telefone digitado apenas quando activePhoneOrName mudar externamente
   useEffect(() => {
     if (activePhoneOrName) {
       setTelefoneDigitado(activePhoneOrName);
@@ -111,7 +100,7 @@ export function SankhyaCustomerContextPanel({
     );
   }, [atendimentosData, filaBusca]);
 
-  // Auto-selecionar o primeiro cliente da fila se nada estiver ativo no momento
+  // Auto-selecionar o primeiro cliente da fila na inicialização
   useEffect(() => {
     if (!activePhoneOrName && filaAtendimento && filaAtendimento.length > 0) {
       const primeiro = filaAtendimento[0];
@@ -178,21 +167,19 @@ export function SankhyaCustomerContextPanel({
       }));
   }, [titulos, selectedIds]);
 
-  // Interpolação de Mensagem
-  const mensagemCalculada = useMemo(() => {
-    if (!templateAtual || !cliente) return mensagemEditada || '';
-    return interpolarMensagemWhatsApp(templateAtual.mensagemTemplate, {
-      nomeParceiro: cliente.nomeParc,
-      titulos: titulosFormatados,
-      telefone: cliente.telefone,
-    });
-  }, [templateAtual, cliente, titulosFormatados]);
-
+  // Atualizar a mensagem apenas quando o cliente ou template mudar (sem sobrescrever a digitação do usuário)
   useEffect(() => {
-    if (mensagemCalculada) {
-      setMensagemEditada(mensagemCalculada);
+    if (templateAtual && cliente) {
+      const msg = interpolarMensagemWhatsApp(templateAtual.mensagemTemplate, {
+        nomeParceiro: cliente.nomeParc,
+        titulos: titulosFormatados,
+        telefone: cliente.telefone,
+      });
+      setMensagemEditada(msg);
+    } else if (templateAtual && !mensagemEditada) {
+      setMensagemEditada(templateAtual.mensagemTemplate || '');
     }
-  }, [mensagemCalculada]);
+  }, [cliente?.codParc, templateAtual?.id, selectedIds]);
 
   const toggleSelectId = (id: number) => {
     const next = new Set(selectedIds);
@@ -273,7 +260,7 @@ export function SankhyaCustomerContextPanel({
       {/* PARTE SUPERIOR: Detalhes do Cliente e Caixa de Envio */}
       <div className="p-3 space-y-3 border-b border-gray-200 bg-white">
         {loading ? (
-          <div className="flex flex-col items-center justify-center py-6 text-gray-400 gap-2">
+          <div className="flex flex-col items-center justify-center py-4 text-gray-400 gap-2">
             <Loader2 className="h-5 w-5 animate-spin text-emerald-600" />
             <span className="text-xs font-semibold">Consultando Sankhya...</span>
           </div>
@@ -376,7 +363,7 @@ export function SankhyaCustomerContextPanel({
           </>
         ) : null}
 
-        {/* Formulário de Envio: Telefone Destinatário + Mensagem (SEMPRE VISÍVEIS) */}
+        {/* Formulário de Envio: Telefone Destinatário + Mensagem */}
         <div className="space-y-2 pt-1 border-t border-gray-100">
           <div>
             <label className="text-[11px] font-bold text-gray-700 flex items-center justify-between mb-1">
@@ -385,21 +372,15 @@ export function SankhyaCustomerContextPanel({
                 Telefone Destinatário (WhatsApp):
               </span>
               <span className="text-[10px] text-gray-400 font-normal">
-                {cliente ? 'Cliente Selecionado' : 'Digite o número'}
+                {cliente ? 'Cliente Vinculado' : 'Digite o número'}
               </span>
             </label>
             <input
               type="text"
               value={telefoneDigitado}
-              onChange={(e) => {
-                setTelefoneDigitado(e.target.value);
-                const digits = e.target.value.replace(/\D/g, '');
-                if (digits.length >= 8) {
-                  openWhatsAppWithContact(digits);
-                }
-              }}
+              onChange={(e) => setTelefoneDigitado(e.target.value)}
               placeholder="Ex: (11) 99999-8888 ou 5511999998888..."
-              className="w-full rounded-lg border border-gray-300 px-2.5 py-1.5 text-xs text-gray-900 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 focus:outline-none bg-emerald-50/20 font-medium"
+              className="w-full rounded-lg border border-gray-300 px-2.5 py-1.5 text-xs text-gray-900 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 focus:outline-none bg-white font-medium"
             />
           </div>
 
@@ -414,7 +395,7 @@ export function SankhyaCustomerContextPanel({
               rows={4}
               value={mensagemEditada}
               onChange={(e) => setMensagemEditada(e.target.value)}
-              className="w-full rounded-lg border border-gray-300 p-2 text-xs font-sans text-gray-900 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 focus:outline-none leading-relaxed"
+              className="w-full rounded-lg border border-gray-300 p-2 text-xs font-sans text-gray-900 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 focus:outline-none leading-relaxed bg-white"
               placeholder="Digite a mensagem para enviar no WhatsApp..."
             />
           </div>
