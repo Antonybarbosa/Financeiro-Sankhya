@@ -78,10 +78,10 @@ export const authApi = {
       // Acessar os dados diretamente de sankhyaResponse.data.data
       const responseData = sankhyaResponse.data.data;
 
-      if (!responseData) {
+      if (!sankhyaResponse.data.success || !responseData) {
         return {
           success: false,
-          error: 'Resposta inválida do servidor Sankhya',
+          error: sankhyaResponse.data.message || 'Credenciais inválidas ou erro no servidor Sankhya',
         };
       }
 
