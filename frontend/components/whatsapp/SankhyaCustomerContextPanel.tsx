@@ -33,6 +33,7 @@ import {
   ChevronRight,
   Clock,
   PhoneCall,
+  MessageSquare,
 } from 'lucide-react';
 import { WhatsAppTemplatesConfigModal } from '@/components/cobranca/WhatsAppTemplatesConfigModal';
 
@@ -170,7 +171,7 @@ export function SankhyaCustomerContextPanel({
 
   // Interpolação de Mensagem
   const mensagemCalculada = useMemo(() => {
-    if (!templateAtual || !cliente) return '';
+    if (!templateAtual || !cliente) return mensagemEditada || '';
     return interpolarMensagemWhatsApp(templateAtual.mensagemTemplate, {
       nomeParceiro: cliente.nomeParc,
       titulos: titulosFormatados,
@@ -179,7 +180,9 @@ export function SankhyaCustomerContextPanel({
   }, [templateAtual, cliente, titulosFormatados]);
 
   useEffect(() => {
-    setMensagemEditada(mensagemCalculada);
+    if (mensagemCalculada) {
+      setMensagemEditada(mensagemCalculada);
+    }
   }, [mensagemCalculada]);
 
   const toggleSelectId = (id: number) => {
@@ -190,7 +193,10 @@ export function SankhyaCustomerContextPanel({
   };
 
   const handleEnviarMensagem = async () => {
-    if (!mensagemEditada.trim()) return;
+    if (!mensagemEditada.trim()) {
+      toast.error('Mensagem vazia', 'Digite uma mensagem para enviar.');
+      return;
+    }
 
     setSending(true);
     try {
@@ -203,7 +209,7 @@ export function SankhyaCustomerContextPanel({
         });
       }
 
-      toast.success('Mensagem enviada!', 'Texto inserido no WhatsApp e histórico gravado no Sankhya.');
+      toast.success('Mensagem enviada!', 'Texto injetado e enviado no WhatsApp Web.');
     } catch (err) {
       toast.error('Erro ao enviar', 'Não foi possível registrar o atendimento.');
     } finally {
@@ -212,19 +218,18 @@ export function SankhyaCustomerContextPanel({
   };
 
   const handleEnviarPix = () => {
-    const textoPix = `*DADOS PARA PAGAMENTO VIA PIX*\nChave PIX (CNPJ): 00.000.000/0001-00\nFavorecido: Sua Empresa LTDA\nValor: ${formatCurrency(
-      totalEmAberto
-    )}\nPor favor, envie o comprovante por aqui. Obrigado!`;
+    const vlr = totalEmAberto > 0 ? formatCurrency(totalEmAberto) : 'a combinar';
+    const textoPix = `*DADOS PARA PAGAMENTO VIA PIX*\nChave PIX (CNPJ): 00.000.000/0001-00\nFavorecido: Sua Empresa LTDA\nValor: ${vlr}\nPor favor, envie o comprovante por aqui. Obrigado!`;
     whatsappBridge.sendTextToWhatsApp(textoPix, iframeRef);
-    toast.success('PIX Enviado!', 'Dados do PIX inseridos no chat do WhatsApp.');
+    toast.success('PIX Enviado!', 'Dados do PIX injetados e disparados no chat do WhatsApp.');
   };
 
   return (
     <div className="h-full flex flex-col bg-white border-l border-gray-200 overflow-y-auto">
       {/* Header do Painel Contextual */}
-      <div className="p-3.5 border-b border-gray-100 bg-gradient-to-r from-emerald-50/70 to-teal-50/70 flex items-center justify-between sticky top-0 bg-white z-10">
+      <div className="p-3 border-b border-gray-100 bg-gradient-to-r from-emerald-50/70 to-teal-50/70 flex items-center justify-between sticky top-0 bg-white z-10">
         <div className="flex items-center gap-2">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-600 text-white font-bold text-xs shadow-xs">
+          <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-emerald-600 text-white font-bold text-xs shadow-xs">
             <Building2 className="h-4 w-4" />
           </div>
           <div>
@@ -232,7 +237,7 @@ export function SankhyaCustomerContextPanel({
               Painel Financeiro Sankhya
             </h3>
             <p className="text-[10px] text-gray-500">
-              {cliente ? `Cliente: ${cliente.nomeParc}` : activePhoneOrName ? `Contato: ${activePhoneOrName}` : 'Selecione um cliente'}
+              {cliente ? `Cliente: ${cliente.nomeParc}` : activePhoneOrName ? `Contato: ${activePhoneOrName}` : 'WhatsApp Web Conectado'}
             </p>
           </div>
         </div>
@@ -247,42 +252,32 @@ export function SankhyaCustomerContextPanel({
         </button>
       </div>
 
-      {/* PARTE SUPERIOR: Detalhes do Cliente Ativo no WhatsApp */}
-      <div className="p-3.5 space-y-4 border-b border-gray-200 bg-white">
+      {/* PARTE SUPERIOR: Detalhes do Cliente e Caixa de Envio */}
+      <div className="p-3 space-y-3 border-b border-gray-200 bg-white">
         {loading ? (
-          <div className="flex flex-col items-center justify-center py-8 text-gray-400 gap-2">
+          <div className="flex flex-col items-center justify-center py-6 text-gray-400 gap-2">
             <Loader2 className="h-5 w-5 animate-spin text-emerald-600" />
             <span className="text-xs font-semibold">Consultando Sankhya...</span>
-          </div>
-        ) : !cliente && activePhoneOrName ? (
-          <div className="rounded-xl border border-amber-200 bg-amber-50/50 p-3 text-xs text-amber-800 space-y-1">
-            <div className="flex items-center gap-1.5 font-bold text-amber-900">
-              <AlertTriangle className="h-4 w-4 text-amber-600" />
-              Contato não identificado no Sankhya
-            </div>
-            <p className="text-[10px] leading-relaxed text-amber-800">
-              Sem cadastro Sankhya para <strong>{activePhoneOrName}</strong>.
-            </p>
           </div>
         ) : cliente ? (
           <>
             {/* Card do Cliente Identificado */}
-            <div className="rounded-xl border border-gray-200 bg-white p-3 shadow-2xs space-y-2">
+            <div className="rounded-xl border border-gray-200 bg-white p-2.5 shadow-2xs space-y-1.5">
               <div className="flex items-start justify-between">
-                <div>
-                  <h4 className="text-xs font-bold text-gray-900 leading-tight">
+                <div className="min-w-0 pr-1">
+                  <h4 className="text-xs font-bold text-gray-900 leading-tight truncate">
                     {cliente.nomeParc}
                   </h4>
                   <p className="text-[10px] text-gray-500 font-mono">
                     Cód: {cliente.codParc} • {cliente.cnpjCpf}
                   </p>
                 </div>
-                <span className="inline-flex items-center rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-extrabold text-emerald-700 border border-emerald-200">
-                  {cliente.situacao === 'A' ? 'Ativo' : 'Sankhya OK'}
+                <span className="inline-flex items-center rounded-full bg-emerald-50 px-2 py-0.5 text-[9px] font-extrabold text-emerald-700 border border-emerald-200 shrink-0">
+                  {cliente.situacao === 'A' ? 'Ativo' : 'Sankhya'}
                 </span>
               </div>
 
-              <div className="grid grid-cols-2 gap-2 text-[10px] pt-1 border-t border-gray-100">
+              <div className="grid grid-cols-2 gap-1.5 text-[10px] pt-1 border-t border-gray-100">
                 <div>
                   <span className="text-gray-400 block">Telefone:</span>
                   <span className="font-semibold text-gray-800">{formatPhone(cliente.telefone)}</span>
@@ -297,10 +292,10 @@ export function SankhyaCustomerContextPanel({
             </div>
 
             {/* Resumo de Títulos em Aberto */}
-            <div className="space-y-1.5">
+            <div className="space-y-1">
               <div className="flex items-center justify-between">
                 <span className="text-[10px] font-extrabold uppercase tracking-wider text-gray-400">
-                  Títulos no Sankhya ({titulos.length})
+                  Títulos ({titulos.length})
                 </span>
                 <span className="text-xs font-black text-rose-700">
                   {formatCurrency(totalEmAberto)}
@@ -308,35 +303,35 @@ export function SankhyaCustomerContextPanel({
               </div>
 
               {titulos.length === 0 ? (
-                <div className="rounded-lg border border-emerald-100 bg-emerald-50/40 p-2.5 text-center text-xs text-emerald-800 font-medium">
-                  <CheckCircle2 className="h-4 w-4 mx-auto text-emerald-600 mb-1" />
-                  Nenhum título em aberto no momento!
+                <div className="rounded-lg border border-emerald-100 bg-emerald-50/40 p-2 text-center text-xs text-emerald-800 font-medium">
+                  <CheckCircle2 className="h-3.5 w-3.5 mx-auto text-emerald-600 mb-0.5" />
+                  Nenhum título em aberto!
                 </div>
               ) : (
-                <div className="max-h-36 overflow-y-auto space-y-1 pr-1">
+                <div className="max-h-28 overflow-y-auto space-y-1 pr-1">
                   {titulos.map((t) => {
                     const isSelected = selectedIds.has(t.id);
                     return (
                       <div
                         key={t.id}
                         onClick={() => toggleSelectId(t.id)}
-                        className={`flex cursor-pointer items-center justify-between rounded-lg border p-2 text-xs transition-all ${
+                        className={`flex cursor-pointer items-center justify-between rounded-lg border p-1.5 text-xs transition-all ${
                           isSelected
                             ? 'border-emerald-500 bg-emerald-50/60 font-semibold'
                             : 'border-gray-200 bg-white hover:bg-gray-50'
                         }`}
                       >
                         <div className="min-w-0 pr-2">
-                          <p className="font-bold text-gray-900 truncate text-[11px]">
+                          <p className="font-bold text-gray-900 truncate text-[10px]">
                             {t.numero ? `Doc. ${t.numero}` : `NUFIN ${t.id}`}
                             {t.desdobramento && t.desdobramento !== '0' ? `/${t.desdobramento}` : ''}
                           </p>
-                          <p className="text-[10px] text-gray-500">
+                          <p className="text-[9px] text-gray-500">
                             Venc: {formatDate(t.dataVencimento)}
                           </p>
                         </div>
 
-                        <div className="flex items-center gap-1.5 shrink-0">
+                        <div className="flex items-center gap-1 shrink-0">
                           {t.nossoNumero && (
                             <button
                               type="button"
@@ -350,7 +345,7 @@ export function SankhyaCustomerContextPanel({
                               <Barcode className="h-3 w-3" />
                             </button>
                           )}
-                          <span className="font-extrabold text-emerald-950 text-[11px]">
+                          <span className="font-extrabold text-emerald-950 text-[10px]">
                             {formatCurrency(t.valorEmAberto)}
                           </span>
                         </div>
@@ -360,59 +355,66 @@ export function SankhyaCustomerContextPanel({
                 </div>
               )}
             </div>
-
-            {/* Ações Rápidas */}
-            <div className="grid grid-cols-2 gap-2 pt-1">
-              <button
-                type="button"
-                onClick={handleEnviarPix}
-                className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-teal-200 bg-teal-50 px-2.5 py-1.5 text-[11px] font-bold text-teal-800 hover:bg-teal-100 transition-colors"
-              >
-                <QrCode className="h-3.5 w-3.5 text-teal-600" />
-                Enviar PIX
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setConfigModalOpen(true)}
-                className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-gray-200 bg-gray-50 px-2.5 py-1.5 text-[11px] font-bold text-gray-700 hover:bg-gray-100 transition-colors"
-              >
-                <Sparkles className="h-3.5 w-3.5 text-gray-500" />
-                Modelos ({templates.length})
-              </button>
-            </div>
-
-            {/* Editor de Mensagem */}
-            <div className="space-y-1.5 pt-2 border-t border-gray-100">
-              <textarea
-                rows={4}
-                value={mensagemEditada}
-                onChange={(e) => setMensagemEditada(e.target.value)}
-                className="w-full rounded-lg border border-gray-300 p-2 text-xs font-sans text-gray-900 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 focus:outline-none leading-relaxed"
-                placeholder="A mensagem interpolada aparecerá aqui..."
-              />
-
-              <button
-                type="button"
-                onClick={handleEnviarMensagem}
-                disabled={sending || !mensagemEditada.trim()}
-                className="w-full inline-flex items-center justify-center gap-2 rounded-lg bg-emerald-600 px-4 py-2 text-xs font-bold text-white shadow-sm hover:bg-emerald-700 disabled:opacity-50 transition-colors"
-              >
-                {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-                Inserir & Enviar no WhatsApp
-              </button>
-            </div>
           </>
-        ) : null}
+        ) : (
+          <div className="rounded-lg border border-gray-200 bg-gray-50/60 p-2 text-center text-xs text-gray-500">
+            <p className="font-semibold text-gray-700">Chat do WhatsApp Web Ativo</p>
+            <p className="text-[10px] text-gray-400">
+              Digite uma mensagem abaixo ou selecione um cliente da fila para carregar os títulos.
+            </p>
+          </div>
+        )}
+
+        {/* Ações Rápidas (SEMPRE VISÍVEIS) */}
+        <div className="grid grid-cols-2 gap-2 pt-1">
+          <button
+            type="button"
+            onClick={handleEnviarPix}
+            className="inline-flex items-center justify-center gap-1 rounded-lg border border-teal-200 bg-teal-50 px-2 py-1.5 text-[11px] font-bold text-teal-800 hover:bg-teal-100 transition-colors shadow-2xs"
+          >
+            <QrCode className="h-3.5 w-3.5 text-teal-600" />
+            Enviar PIX
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setConfigModalOpen(true)}
+            className="inline-flex items-center justify-center gap-1 rounded-lg border border-gray-200 bg-gray-50 px-2 py-1.5 text-[11px] font-bold text-gray-700 hover:bg-gray-100 transition-colors shadow-2xs"
+          >
+            <Sparkles className="h-3.5 w-3.5 text-gray-500" />
+            Modelos ({templates.length})
+          </button>
+        </div>
+
+        {/* Editor e Botão de Envio no WhatsApp (SEMPRE VISÍVEIS) */}
+        <div className="space-y-1.5 pt-1">
+          <textarea
+            rows={4}
+            value={mensagemEditada}
+            onChange={(e) => setMensagemEditada(e.target.value)}
+            className="w-full rounded-lg border border-gray-300 p-2 text-xs font-sans text-gray-900 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 focus:outline-none leading-relaxed"
+            placeholder="Digite a mensagem para enviar no WhatsApp..."
+          />
+
+          <button
+            type="button"
+            onClick={handleEnviarMensagem}
+            disabled={sending || !mensagemEditada.trim()}
+            className="w-full inline-flex items-center justify-center gap-2 rounded-lg bg-emerald-600 px-3 py-2 text-xs font-bold text-white shadow-xs hover:bg-emerald-700 disabled:opacity-50 transition-colors"
+          >
+            {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+            Inserir & Enviar no WhatsApp
+          </button>
+        </div>
       </div>
 
       {/* PARTE INFERIOR: Fila de Cobrança (Lista + Detalhe) */}
-      <div className="flex-1 p-3.5 bg-gray-50 space-y-3">
+      <div className="flex-1 p-3 bg-gray-50 space-y-2.5">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-1.5">
             <ListOrdered className="h-4 w-4 text-emerald-700" />
             <h4 className="text-xs font-extrabold text-gray-900 uppercase tracking-wider">
-              Fila de Cobrança (Lista + Detalhe)
+              Fila de Cobrança (Atendimentos)
             </h4>
           </div>
           <span className="text-[10px] font-bold bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-full border border-emerald-200">
@@ -439,11 +441,11 @@ export function SankhyaCustomerContextPanel({
             Carregando fila...
           </div>
         ) : filaAtendimento.length === 0 ? (
-          <div className="rounded-lg border border-dashed border-gray-200 p-4 text-center text-xs text-gray-400">
+          <div className="rounded-lg border border-dashed border-gray-200 p-3 text-center text-xs text-gray-400">
             Nenhum cliente na fila no momento.
           </div>
         ) : (
-          <div className="space-y-1.5 max-h-80 overflow-y-auto pr-1">
+          <div className="space-y-1.5 max-h-72 overflow-y-auto pr-1">
             {filaAtendimento.map((item) => {
               const isSelected = cliente && cliente.codParc === item.parceiroId;
               return (
