@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Financeiro Sankhya - WhatsApp Web Bridge",
-  "version": "1.0.7",
+  "version": "1.0.8",
   "description": "Integração bidirecional do WhatsApp Web com o sistema Financeiro Sankhya (detecção de conversas, envio de mensagens e boletos).",
   "permissions": [
     "declarativeNetRequest",

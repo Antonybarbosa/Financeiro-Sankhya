@@ -174,7 +174,7 @@
     }, 250);
   }
 
-  // 7. Busca um contato na lista de resultados IGNORANDO o botão 'Arquivadas'
+  // 7. Busca um contato na lista de resultados IGNORANDO explicitamente Arquivadas
   function findContactSearchResult(phoneDigits) {
     const cleanDigits = phoneDigits.replace(/\D/g, "");
     const shortDigits = cleanDigits.length > 8 ? cleanDigits.slice(-8) : cleanDigits;
@@ -201,7 +201,7 @@
       const text = item.innerText || "";
       const textLower = text.toLowerCase();
 
-      // Ignora expressamente o botão de Arquivadas
+      // Ignora expressamente qualquer elemento de Arquivadas
       if (
         textLower.includes("arquivada") ||
         textLower.includes("archived") ||
@@ -221,39 +221,31 @@
       }
     }
 
-    // 3. Fallback: primeiro item que NÃO seja 'Arquivadas'
-    for (const item of items) {
-      const text = item.innerText || "";
-      const textLower = text.toLowerCase();
-      if (
-        !textLower.includes("arquivada") &&
-        !textLower.includes("archived") &&
-        !item.querySelector("span[data-icon*='archive']")
-      ) {
-        return item;
-      }
-    }
-
     return null;
   }
 
-  // 8. Abre qualquer telefone via busca nativa do WhatsApp sem recarregar o iframe
+  // 8. Abre qualquer telefone via busca nativa direta (SEM CLICAR EM BOTÕES DO TOPO)
   function openChatWithoutReload(phone, text) {
     try {
       const cleanPhone = phone.replace(/\D/g, "");
       const fullPhone = cleanPhone.length <= 11 ? "55" + cleanPhone : cleanPhone;
 
-      console.log("[Sankhya Bridge] Iniciando busca para o número:", fullPhone);
+      console.log("[Sankhya Bridge] Buscando diretamente na caixa de pesquisa:", fullPhone);
 
       // Localiza a caixa de busca principal da barra lateral
       const searchBox =
         document.querySelector("#side div[contenteditable='true']") ||
         document.querySelector("div[data-tab='3']") ||
-        document.querySelector("div[role='textbox']") ||
-        document.querySelector("#side input");
+        document.querySelector("#side div[role='textbox']") ||
+        document.querySelector("#side input[type='text']") ||
+        document.querySelector("div[aria-label*='Pesquisar']");
 
       if (searchBox) {
         simulateHumanClick(searchBox);
+
+        // Limpa busca anterior
+        document.execCommand("selectAll", false, null);
+        document.execCommand("delete", false, null);
 
         // Digita o telefone na busca
         simulateHumanTyping(searchBox, fullPhone);
@@ -277,7 +269,7 @@
             }
           }
 
-          if (searchAttempts >= 12) {
+          if (searchAttempts >= 10) {
             clearInterval(searchInterval);
             // Fallback: âncora virtual SPA
             const a = document.createElement("a");
