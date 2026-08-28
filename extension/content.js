@@ -1,12 +1,12 @@
 // Content script injetado em https://web.whatsapp.com/* (Top frame e Sub frames)
-// Comunicação com o sistema Financeiro Sankhya (parent frame ou web app)
+// Comunicação bidirecional e simulação de eventos humanos no WhatsApp Web
 
 (function () {
   console.log("[Sankhya Bridge] Content script carregado no WhatsApp Web (Frame: " + (window.self === window.top ? "TOP" : "SUBFRAME") + ").");
 
   let lastSelectedPhone = "";
 
-  // Notificar a janela pai que a extensão Sankhya está pronta
+  // 1. Notificar a janela pai que a extensão Sankhya está ativa
   function notifyBridgeReady() {
     try {
       window.parent.postMessage({ type: "SANKHYA_BRIDGE_READY" }, "*");
@@ -14,22 +14,19 @@
     } catch (e) {}
   }
 
-  // Tenta extrair o telefone ou dados do contato selecionado no WhatsApp Web
+  // 2. Extrai o telefone ou nome do contato selecionado no WhatsApp Web
   function extractActiveChatPhone() {
     try {
-      // 1. Tentar obter pelo título do header do chat
       const headerTitle = document.querySelector("#main header span[title]");
       if (!headerTitle) return null;
 
       const titleText = headerTitle.getAttribute("title") || headerTitle.innerText || "";
       
-      // Se for um número de telefone no título (ex: +55 11 99999-8888 ou 11 999998888)
       const digitsOnly = titleText.replace(/\D/g, "");
       if (digitsOnly.length >= 8) {
         return digitsOnly;
       }
 
-      // 2. Tentar buscar em elementos com atributos data-jid ou img da foto do perfil
       const profileImg = document.querySelector("#main header img[src*='whatsapp.net']");
       if (profileImg) {
         const src = profileImg.getAttribute("src") || "";
@@ -39,13 +36,84 @@
         }
       }
 
-      return titleText; // Retorna o nome se não achar número
+      return titleText;
     } catch (e) {
       return null;
     }
   }
 
-  // Localiza o campo de input de mensagem no DOM com suporte a todos os motores do WhatsApp (Lexical, DraftJS, etc)
+  // 3. Simula sequência completa de eventos do mouse/touch humano em um elemento
+  function simulateHumanClick(element) {
+    if (!element) return;
+    try {
+      const rect = element.getBoundingClientRect();
+      const clientX = rect.left + Math.max(1, rect.width / 2);
+      const clientY = rect.top + Math.max(1, rect.height / 2);
+      const opts = {
+        bubbles: true,
+        cancelable: true,
+        view: window,
+        clientX,
+        clientY,
+        buttons: 1,
+      };
+
+      element.dispatchEvent(new PointerEvent("pointerover", opts));
+      element.dispatchEvent(new MouseEvent("mouseover", opts));
+      element.dispatchEvent(new PointerEvent("pointerenter", opts));
+      element.dispatchEvent(new MouseEvent("mouseenter", opts));
+      element.dispatchEvent(new PointerEvent("pointerdown", opts));
+      element.dispatchEvent(new MouseEvent("mousedown", opts));
+      element.focus();
+      element.dispatchEvent(new PointerEvent("pointerup", opts));
+      element.dispatchEvent(new MouseEvent("mouseup", opts));
+      element.dispatchEvent(new MouseEvent("click", opts));
+    } catch (err) {
+      // Fallback simples
+      element.click();
+    }
+  }
+
+  // 4. Simula digitação humana nativa (compatível com Lexical, React 18 e DraftJS)
+  function simulateHumanTyping(element, text) {
+    if (!element) return;
+    try {
+      simulateHumanClick(element);
+
+      // Posiciona seleção
+      const selection = window.getSelection();
+      const range = document.createRange();
+      range.selectNodeContents(element);
+      range.collapse(false);
+      selection.removeAllRanges();
+      selection.addRange(range);
+
+      // Tenta inserção via ClipboardEvent (Paste) que o Lexical adora
+      try {
+        const dataTransfer = new DataTransfer();
+        dataTransfer.setData("text/plain", text);
+        const pasteEvent = new ClipboardEvent("paste", {
+          bubbles: true,
+          cancelable: true,
+          clipboardData: dataTransfer,
+        });
+        element.dispatchEvent(pasteEvent);
+      } catch (e) {}
+
+      // Fallback nativo: execCommand com beforeinput e input
+      if (!element.innerText || !element.innerText.includes(text.slice(0, 5))) {
+        element.dispatchEvent(new InputEvent("beforeinput", { bubbles: true, cancelable: true, inputType: "insertText", data: text }));
+        document.execCommand("insertText", false, text);
+        element.dispatchEvent(new InputEvent("input", { bubbles: true, inputType: "insertText", data: text }));
+      }
+
+      element.dispatchEvent(new Event("change", { bubbles: true }));
+    } catch (e) {
+      console.error("[Sankhya Bridge] Erro ao simular digitação:", e);
+    }
+  }
+
+  // 5. Localiza a caixa de mensagem do WhatsApp Web
   function findMessageInput() {
     return (
       document.querySelector("#main footer div[contenteditable='true']") ||
@@ -59,62 +127,7 @@
     );
   }
 
-  // Executa a inserção do texto e clique no botão de envio
-  function executeInsertAndSend(messageInput, text) {
-    try {
-      messageInput.focus();
-
-      // Ajusta o cursor para dentro do campo
-      const selection = window.getSelection();
-      const range = document.createRange();
-      range.selectNodeContents(messageInput);
-      range.collapse(false);
-      selection.removeAllRanges();
-      selection.addRange(range);
-
-      // Inserir texto nativamente
-      document.execCommand("insertText", false, text);
-
-      // Fallback caso execCommand falhe
-      if (!messageInput.innerText || !messageInput.innerText.includes(text.slice(0, 5))) {
-        messageInput.innerText = text;
-      }
-
-      // Disparar eventos de input para o React/Lexical do WhatsApp
-      messageInput.dispatchEvent(new InputEvent("beforeinput", { bubbles: true, inputType: "insertText", data: text }));
-      messageInput.dispatchEvent(new Event("input", { bubbles: true }));
-      messageInput.dispatchEvent(new Event("change", { bubbles: true }));
-
-      // Aguardar brevemente e disparar envio
-      setTimeout(() => {
-        const sendBtn =
-          document.querySelector("#main footer button[aria-label*='Enviar']") ||
-          document.querySelector("#main footer button[aria-label*='Send']") ||
-          document.querySelector("#main footer span[data-icon='send']") ||
-          document.querySelector("#main footer span[data-icon='wds-ic-send-filled']") ||
-          document.querySelector("#main footer button:has(span[data-icon*='send'])");
-
-        if (sendBtn) {
-          sendBtn.click();
-          console.log("[Sankhya Bridge] Mensagem enviada com sucesso!");
-        } else {
-          const enterEvent = new KeyboardEvent("keydown", {
-            key: "Enter",
-            code: "Enter",
-            keyCode: 13,
-            which: 13,
-            bubbles: true,
-          });
-          messageInput.dispatchEvent(enterEvent);
-          console.log("[Sankhya Bridge] Mensagem enviada via Enter!");
-        }
-      }, 350);
-    } catch (e) {
-      console.error("[Sankhya Bridge] Erro ao executar envio:", e);
-    }
-  }
-
-  // Inserir mensagem no campo de texto do WhatsApp Web com polling automático (aguarda a conversa abrir)
+  // 6. Injeta o texto e aciona o envio
   function sendMessageToActiveChat(text, maxAttempts = 15) {
     let attempts = 0;
     const interval = setInterval(() => {
@@ -123,27 +136,55 @@
 
       if (messageInput) {
         clearInterval(interval);
-        executeInsertAndSend(messageInput, text);
+
+        // Digita a mensagem
+        simulateHumanTyping(messageInput, text);
+
+        // Dispara o clique no botão enviar após breve pausa
+        setTimeout(() => {
+          const sendBtn =
+            document.querySelector("#main footer button[aria-label*='Enviar']") ||
+            document.querySelector("#main footer button[aria-label*='Send']") ||
+            document.querySelector("#main footer span[data-icon='send']") ||
+            document.querySelector("#main footer span[data-icon='wds-ic-send-filled']") ||
+            document.querySelector("#main footer button:has(span[data-icon*='send'])");
+
+          if (sendBtn) {
+            simulateHumanClick(sendBtn);
+            console.log("[Sankhya Bridge] Mensagem enviada via clique simulado no botão Enviar!");
+          } else {
+            const enterEvent = new KeyboardEvent("keydown", {
+              key: "Enter",
+              code: "Enter",
+              keyCode: 13,
+              which: 13,
+              bubbles: true,
+            });
+            messageInput.dispatchEvent(enterEvent);
+            console.log("[Sankhya Bridge] Mensagem enviada via simulador de tecla Enter!");
+          }
+        }, 350);
+
         return;
       }
 
       if (attempts >= maxAttempts) {
         clearInterval(interval);
-        console.warn("[Sankhya Bridge] Campo de mensagem não encontrado após aguardar o chat carregar.");
+        console.warn("[Sankhya Bridge] Campo de mensagem não encontrado. Abra um chat no WhatsApp.");
       }
-    }, 200);
+    }, 250);
   }
 
-  // Abrir conversa diretamente no WhatsApp Web sem recarregar o iframe
+  // 7. Abre qualquer telefone via busca nativa/Nova Conversa do WhatsApp
   function openChatWithoutReload(phone, text) {
     try {
       const cleanPhone = phone.replace(/\D/g, "");
       const fullPhone = cleanPhone.length <= 11 ? "55" + cleanPhone : cleanPhone;
       const shortPhone = cleanPhone.length > 8 ? cleanPhone.slice(-8) : cleanPhone;
 
-      console.log("[Sankhya Bridge] Abrindo conversa para:", fullPhone);
+      console.log("[Sankhya Bridge] Iniciando busca e abertura para:", fullPhone);
 
-      // 1. Tenta clicar no botão de 'Nova conversa' para abrir a gaveta de busca
+      // Clica no botão de Nova Conversa
       const newChatBtn =
         document.querySelector("button[aria-label*='Nova conversa']") ||
         document.querySelector("button[aria-label*='New chat']") ||
@@ -152,10 +193,10 @@
         document.querySelector("span[data-icon='plus']");
 
       if (newChatBtn) {
-        newChatBtn.click();
+        simulateHumanClick(newChatBtn);
       }
 
-      // 2. Localiza a caixa de busca de contatos/conversas
+      // Localiza o campo de busca
       setTimeout(() => {
         const searchBox =
           document.querySelector("#side div[contenteditable='true']") ||
@@ -164,24 +205,12 @@
           document.querySelector("#side input");
 
         if (searchBox) {
-          searchBox.focus();
+          simulateHumanClick(searchBox);
 
-          const selection = window.getSelection();
-          const range = document.createRange();
-          range.selectNodeContents(searchBox);
-          range.collapse(false);
-          selection.removeAllRanges();
-          selection.addRange(range);
+          // Digita o telefone
+          simulateHumanTyping(searchBox, fullPhone);
 
-          // Insere o número na busca
-          document.execCommand("selectAll", false, null);
-          document.execCommand("insertText", false, fullPhone);
-
-          searchBox.dispatchEvent(new InputEvent("beforeinput", { bubbles: true, inputType: "insertText", data: fullPhone }));
-          searchBox.dispatchEvent(new Event("input", { bubbles: true }));
-          searchBox.dispatchEvent(new Event("change", { bubbles: true }));
-
-          // Aguarda os resultados da busca aparecerem na lista
+          // Monitora a lista de contatos para clicar no resultado
           let searchAttempts = 0;
           const searchInterval = setInterval(() => {
             searchAttempts++;
@@ -196,17 +225,19 @@
 
             if (contactItem) {
               clearInterval(searchInterval);
-              contactItem.click();
-              console.log("[Sankhya Bridge] Chat selecionado via busca!");
+              simulateHumanClick(contactItem);
+              console.log("[Sankhya Bridge] Contato encontrado e aberto!");
 
               if (text) {
-                sendMessageToActiveChat(text, 20);
+                setTimeout(() => {
+                  sendMessageToActiveChat(text, 20);
+                }, 500);
               }
             }
 
             if (searchAttempts >= 12) {
               clearInterval(searchInterval);
-              // Fallback: âncora virtual SPA
+              // Fallback SPA
               const a = document.createElement("a");
               a.href = `https://web.whatsapp.com/send?phone=${fullPhone}${text ? `&text=${encodeURIComponent(text)}` : ""}`;
               a.style.display = "none";
@@ -218,9 +249,9 @@
                 sendMessageToActiveChat(text, 25);
               }
             }
-          }, 200);
+          }, 250);
         } else {
-          // Fallback: âncora virtual SPA
+          // Fallback SPA
           const a = document.createElement("a");
           a.href = `https://web.whatsapp.com/send?phone=${fullPhone}${text ? `&text=${encodeURIComponent(text)}` : ""}`;
           a.style.display = "none";
@@ -236,15 +267,15 @@
 
       return true;
     } catch (e) {
-      console.error("[Sankhya Bridge] Erro ao abrir chat:", e);
+      console.error("[Sankhya Bridge] Erro ao abrir conversa:", e);
       return false;
     }
   }
 
-  // Auto-enviar quando a página for aberta através de deep link /send?phone=...&text=...
+  // 8. Auto-enviar quando a página for aberta via URL send?phone=...
   function checkAutoSendUrl() {
     if (window.location.href.includes("send?phone=") || window.location.href.includes("send/?phone=")) {
-      console.log("[Sankhya Bridge] Deep link send?phone detectado. Aguardando renderização do chat...");
+      console.log("[Sankhya Bridge] Deep link send?phone ativo. Aguardando chat renderizar...");
       let attempts = 0;
       const interval = setInterval(() => {
         attempts++;
@@ -260,8 +291,8 @@
         if (sendBtn) {
           clearInterval(interval);
           setTimeout(() => {
-            sendBtn.click();
-            console.log("[Sankhya Bridge] Mensagem enviada automaticamente no deep link!");
+            simulateHumanClick(sendBtn);
+            console.log("[Sankhya Bridge] Envio automático concluído no deep link!");
           }, 600);
         } else if (messageInput && attempts >= 8 && messageInput.innerText.trim().length > 0) {
           clearInterval(interval);
@@ -273,7 +304,7 @@
             bubbles: true,
           });
           messageInput.dispatchEvent(enterEvent);
-          console.log("[Sankhya Bridge] Mensagem enviada via tecla Enter no deep link.");
+          console.log("[Sankhya Bridge] Envio automático via Enter concluído!");
         }
 
         if (attempts >= 50) {
@@ -283,13 +314,13 @@
     }
   }
 
-  // Monitorar mudanças no chat ativo a cada 1.2s
+  // 9. Heartbeat e monitor de conversa ativa
   setInterval(() => {
     notifyBridgeReady();
     const currentChat = extractActiveChatPhone();
     if (currentChat && currentChat !== lastSelectedPhone) {
       lastSelectedPhone = currentChat;
-      console.log("[Sankhya Bridge] Chat alterado:", currentChat);
+      console.log("[Sankhya Bridge] Chat ativo alterado:", currentChat);
       try {
         window.parent.postMessage(
           {
@@ -302,7 +333,7 @@
     }
   }, 1200);
 
-  // Escutar requisições vindas do Next.js
+  // 10. Ouvinte de mensagens vindas da aplicação Sankhya
   window.addEventListener("message", (event) => {
     if (!event.data || typeof event.data !== "object") return;
 
@@ -327,7 +358,7 @@
     }
   });
 
-  // Notificar assim que carregar e monitorar auto-send
+  // Inicialização
   setTimeout(() => {
     notifyBridgeReady();
     checkAutoSendUrl();
