@@ -4,6 +4,9 @@ import {
   Post,
   Body,
   Query,
+  Req,
+  BadRequestException,
+  NotFoundException,
 } from '@nestjs/common';
 import { ClienteUseCases } from '../../application/use-cases/cliente.use-cases';
 import { TituloUseCases } from '../../application/use-cases/titulo.use-cases';
@@ -84,23 +87,56 @@ export class WhatsAppController {
   }
 
   /**
-   * Busca títulos em aberto para o telefone fornecido
+   * Busca títulos em aberto para o telefone ou parceiroId fornecido
    */
   @Public()
   @Get('titulos-por-telefone')
-  async buscarTitulosPorTelefone(@Query('telefone') telefone: string) {
-    if (!telefone) {
-      return { cliente: null, titulos: [], totalEmAberto: 0 };
+  async buscarTitulosPorTelefone(
+    @Query('telefone') telefone?: string,
+    @Query('parceiroId') parceiroId?: string,
+  ) {
+    let resCliente: { encontrado: boolean; cliente: any; erro?: string } = {
+      encontrado: false,
+      cliente: null,
+    };
+
+    if (parceiroId) {
+      try {
+        const idNum = parseInt(parceiroId, 10);
+        if (!isNaN(idNum)) {
+          const clienteSankhya = await this.clienteUseCases.buscarPorId(idNum);
+          if (clienteSankhya) {
+            resCliente = {
+              encontrado: true,
+              cliente: {
+                codParc: clienteSankhya.codParc,
+                nomeParc: clienteSankhya.nomeParc,
+                razaoSocial: clienteSankhya.razaoSocial || clienteSankhya.nomeParc,
+                cnpjCpf: clienteSankhya.cnpjCpf,
+                telefone: clienteSankhya.telefone || telefone || '',
+                email: clienteSankhya.email || null,
+                tipoPessoa: clienteSankhya.tipoPessoa || 'J',
+                limiteCredito: clienteSankhya.limiteCredito || 0,
+                situacao: clienteSankhya.situacao || 'A',
+              },
+            };
+          }
+        }
+      } catch (err) {
+        // Fallback para busca por telefone se houver erro no ID
+      }
     }
 
-    const resCliente = await this.buscarClientePorTelefone(telefone);
+    if (!resCliente.encontrado && telefone) {
+      resCliente = await this.buscarClientePorTelefone(telefone);
+    }
     if (!resCliente.encontrado || !resCliente.cliente) {
       return { cliente: null, titulos: [], totalEmAberto: 0 };
     }
 
-    const parceiroId = resCliente.cliente.codParc;
-    const titulos = await this.tituloUseCases.buscarPorCliente(parceiroId);
-    
+    const codParc = resCliente.cliente.codParc;
+    const titulos = await this.tituloUseCases.buscarPorCliente(codParc);
+
     const titulosAbertos = titulos.filter(
       (t) => (t.valorEmAberto || 0) > 0 && t.status !== StatusTitulo.PAGO && t.status !== StatusTitulo.BAIXADO
     );
@@ -115,11 +151,12 @@ export class WhatsAppController {
   }
 
   /**
-   * Registrar envio de mensagem/cobrança via WhatsApp no histórico do Sankhya
+   * Registrar envio de mensagem/cobrança via WhatsApp no histórico do Sankhya e encerrar atendimento
    */
   @Public()
   @Post('registrar-historico')
   async registrarHistorico(
+    @Req() req: any,
     @Body()
     body: {
       parceiroId?: number;
@@ -137,20 +174,23 @@ export class WhatsAppController {
       return { success: true, avulso: true };
     }
 
+    const usuarioLogado = req.user;
     const proximaData = body.proximaChamada ? new Date(body.proximaChamada) : null;
 
+    const msgLimpa = (body.mensagem || '').trim();
     const dto = {
       parceiroId: body.parceiroId,
       tipo: TipoContato.WHATSAPP,
-      historico: `[WHATSAPP WEB] ${body.mensagem.substring(0, 300)}...`,
-      mensagem: body.mensagem,
+      historico: `[WHATSAPP WEB] ${msgLimpa.substring(0, 250)}`,
+      comentarios: `[WHATSAPP WEB] ${msgLimpa}`.substring(0, 290),
+      mensagem: msgLimpa.substring(0, 290),
       situacao: SituacaoContato.CONCLUIDO,
       pendente: false,
       proximaChamada: proximaData,
       nuFin: body.nuFin || null,
     };
 
-    const contatoCriado = await this.contatoUseCases.criarContato(dto);
+    const contatoCriado = await this.contatoUseCases.criarContato(dto, usuarioLogado);
     return { success: true, contato: contatoCriado };
   }
 }

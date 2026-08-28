@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "Financeiro Sankhya - WhatsApp Web Bridge",
-  "version": "1.1.1",
-  "description": "Integração bidirecional do WhatsApp Web com o sistema Financeiro Sankhya (detecção de conversas, envio de mensagens e boletos).",
+  "name": "Financeiro Sankhya - WhatsApp Web Skill",
+  "version": "1.3.0",
+  "description": "Skill de automação e integração bidirecional do WhatsApp Web com o sistema Financeiro Sankhya.",
   "permissions": [
     "declarativeNetRequest",
     "declarativeNetRequestWithHostAccess",
@@ -21,13 +21,37 @@
   },
   "content_scripts": [
     {
-      "matches": ["https://web.whatsapp.com/*"],
-      "js": ["content.js"],
+      "matches": [
+        "https://web.whatsapp.com/*",
+        "http://localhost:3000/*",
+        "http://127.0.0.1:3000/*"
+      ],
+      "js": [
+        "src/selectors.js",
+        "src/wait.js",
+        "src/dom.js",
+        "src/controller.js",
+        "content.js"
+      ],
       "run_at": "document_end",
-      "all_frames": true
+      "all_frames": true,
+      "world": "MAIN"
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": [
+        "src/*.js",
+        "content.js"
+      ],
+      "matches": [
+        "https://web.whatsapp.com/*",
+        "http://localhost:3000/*",
+        "http://127.0.0.1:3000/*"
+      ]
     }
   ],
   "action": {
-    "default_title": "Financeiro Sankhya WhatsApp Bridge"
+    "default_title": "Financeiro Sankhya WhatsApp Skill"
   }
 }

@@ -1,405 +1,150 @@
-// Content script injetado em https://web.whatsapp.com/* (Top frame e Sub frames)
-// Comunicação bidirecional e Motor Unificado de Envio ULTRA RÁPIDO do WhatsApp Web
-
 (function () {
-  console.log("[Sankhya Bridge] Content script ULTRA FAST carregado no WhatsApp Web (Frame: " + (window.self === window.top ? "TOP" : "SUBFRAME") + ").");
+  const isHostPage = window.location.origin.includes("localhost") || window.location.origin.includes("127.0.0.1");
+  const isWhatsApp = window.location.hostname.includes("whatsapp.com");
 
-  let lastSelectedPhone = "";
+  console.log(`[WhatsApp Skill Engine] Script injetado em: ${window.location.href} (isHost: ${isHostPage}, isWhatsApp: ${isWhatsApp})`);
 
-  // 1. Notificar a janela pai que a extensão Sankhya está ativa
-  function notifyBridgeReady() {
-    try {
-      window.parent.postMessage({ type: "SANKHYA_BRIDGE_READY" }, "*");
-      window.postMessage({ type: "SANKHYA_BRIDGE_READY" }, "*");
-    } catch (e) {}
-  }
-
-  // 2. Extrai o telefone ou nome do contato selecionado no WhatsApp Web
-  function extractActiveChatPhone() {
-    try {
-      const headerTitle = document.querySelector("#main header span[title]");
-      if (!headerTitle) return null;
-
-      const titleText = headerTitle.getAttribute("title") || headerTitle.innerText || "";
-      
-      const digitsOnly = titleText.replace(/\D/g, "");
-      if (digitsOnly.length >= 8) {
-        return digitsOnly;
-      }
-
-      const profileImg = document.querySelector("#main header img[src*='whatsapp.net']");
-      if (profileImg) {
-        const src = profileImg.getAttribute("src") || "";
-        const match = src.match(/\/u\/(\d+)/) || src.match(/(\d+)@/);
-        if (match && match[1]) {
-          return match[1];
-        }
-      }
-
-      return titleText;
-    } catch (e) {
-      return null;
-    }
-  }
-
-  // 3. Simula sequência completa de eventos do mouse/touch humano em um elemento (Zero Delay)
-  function simulateHumanClick(element) {
-    if (!element) return;
-    try {
-      const rect = element.getBoundingClientRect();
-      const clientX = rect.left + Math.max(1, rect.width / 2);
-      const clientY = rect.top + Math.max(1, rect.height / 2);
-      const opts = {
-        bubbles: true,
-        cancelable: true,
-        view: window,
-        clientX,
-        clientY,
-        buttons: 1,
-      };
-
-      element.dispatchEvent(new PointerEvent("pointerover", opts));
-      element.dispatchEvent(new MouseEvent("mouseover", opts));
-      element.dispatchEvent(new PointerEvent("pointerdown", opts));
-      element.dispatchEvent(new MouseEvent("mousedown", opts));
-      element.focus();
-      element.dispatchEvent(new PointerEvent("pointerup", opts));
-      element.dispatchEvent(new MouseEvent("mouseup", opts));
-      element.dispatchEvent(new MouseEvent("click", opts));
-    } catch (err) {
-      element.click();
-    }
-  }
-
-  // 4. Simula digitação humana nativa instantânea (Lexical, React 18 e DraftJS)
-  function simulateHumanTyping(element, text) {
-    if (!element) return;
-    try {
-      simulateHumanClick(element);
-
-      // Posiciona seleção
-      const selection = window.getSelection();
-      const range = document.createRange();
-      range.selectNodeContents(element);
-      range.collapse(false);
-      selection.removeAllRanges();
-      selection.addRange(range);
-
-      // Inserção via ClipboardEvent (Paste)
+  // ========================================================
+  // 1. COMPORTAMENTO NA PÁGINA PRINCIPAL (Next.js / Localhost)
+  // ========================================================
+  if (isHostPage) {
+    function notifyHostReady() {
       try {
-        const dataTransfer = new DataTransfer();
-        dataTransfer.setData("text/plain", text);
-        const pasteEvent = new ClipboardEvent("paste", {
-          bubbles: true,
-          cancelable: true,
-          clipboardData: dataTransfer,
+        window.postMessage({ type: "WHATSAPP_EVENT", event: "whatsapp_ready", timestamp: Date.now() }, "*");
+      } catch (e) {}
+    }
+
+    notifyHostReady();
+    setInterval(notifyHostReady, 2000);
+
+    // Escuta comandos na página principal e repassa para todos os iframes da tela
+    window.addEventListener("message", (event) => {
+      if (!event.data || typeof event.data !== "object") return;
+      if (event.data.type === "WHATSAPP_COMMAND") {
+        const iframes = document.querySelectorAll("iframe");
+        iframes.forEach((ifr) => {
+          try {
+            ifr.contentWindow?.postMessage(event.data, "*");
+          } catch (e) {}
         });
-        element.dispatchEvent(pasteEvent);
-      } catch (e) {}
-
-      // Fallback nativo: execCommand com beforeinput e input
-      if (!element.innerText || !element.innerText.includes(text.slice(0, 5))) {
-        element.dispatchEvent(new InputEvent("beforeinput", { bubbles: true, cancelable: true, inputType: "insertText", data: text }));
-        document.execCommand("insertText", false, text);
-        element.dispatchEvent(new InputEvent("input", { bubbles: true, inputType: "insertText", data: text }));
       }
-
-      element.dispatchEvent(new Event("change", { bubbles: true }));
-    } catch (e) {
-      console.error("[Sankhya Bridge] Erro ao simular digitação:", e);
-    }
+    });
+    return;
   }
 
-  // 5. Localiza a caixa de mensagem do WhatsApp Web
-  function findMessageInput() {
-    return (
-      document.querySelector("#main footer div[contenteditable='true']") ||
-      document.querySelector("#main footer div[data-lexical-editor='true']") ||
-      document.querySelector("#main footer div[role='textbox']") ||
-      document.querySelector("#main footer div.lexical-rich-text-input") ||
-      document.querySelector("footer div[contenteditable='true']") ||
-      document.querySelector("footer div[role='textbox']") ||
-      document.querySelector("footer div[data-lexical-editor='true']") ||
-      document.querySelector("#main footer p.selectable-text")
-    );
-  }
+  // ========================================================
+  // 2. COMPORTAMENTO NO WHATSAPP WEB (Dentro do Iframe)
+  // ========================================================
+  if (isWhatsApp) {
+    let lastChat = "";
 
-  // 6. Motor Unificado de Envio Ultra Rápido (Polling a cada 40ms)
-  function waitForActiveChatAndSend(text, maxAttempts = 30) {
-    let attempts = 0;
-    const interval = setInterval(() => {
-      attempts++;
-      const messageInput = findMessageInput();
-
-      if (messageInput) {
-        clearInterval(interval);
-
-        setTimeout(() => {
-          simulateHumanTyping(messageInput, text);
-
-          setTimeout(() => {
-            const sendBtn =
-              document.querySelector("#main footer button[aria-label*='Enviar']") ||
-              document.querySelector("#main footer button[aria-label*='Send']") ||
-              document.querySelector("#main footer span[data-icon='send']") ||
-              document.querySelector("#main footer span[data-icon='wds-ic-send-filled']") ||
-              document.querySelector("#main footer button:has(span[data-icon*='send'])");
-
-            if (sendBtn) {
-              simulateHumanClick(sendBtn);
-              console.log("[Sankhya Bridge] Mensagem enviada com sucesso!");
-            } else {
-              const enterEvent = new KeyboardEvent("keydown", {
-                key: "Enter",
-                code: "Enter",
-                keyCode: 13,
-                which: 13,
-                bubbles: true,
-              });
-              messageInput.dispatchEvent(enterEvent);
-              console.log("[Sankhya Bridge] Mensagem enviada via Enter!");
-            }
-          }, 80);
-        }, 30);
-
-        return;
-      }
-
-      if (attempts >= maxAttempts) {
-        clearInterval(interval);
-      }
-    }, 40);
-  }
-
-  // 7. Busca um contato na lista de resultados IGNORANDO explicitamente Arquivadas
-  function findContactSearchResult(phoneDigits) {
-    const cleanDigits = phoneDigits.replace(/\D/g, "");
-    const shortDigits = cleanDigits.length > 8 ? cleanDigits.slice(-8) : cleanDigits;
-
-    // 1. Procurar elementos que contenham os dígitos do telefone no título
-    const matchingTitle = document.querySelector(
-      `#pane-side span[title*='${shortDigits}'], div[aria-label*='Resultados'] span[title*='${shortDigits}'], div[aria-label*='Results'] span[title*='${shortDigits}']`
-    );
-    if (matchingTitle) {
-      const container =
-        matchingTitle.closest("div[role='listitem']") ||
-        matchingTitle.closest("div[data-testid='cell-frame-container']") ||
-        matchingTitle.closest("div[tabindex='-1']") ||
-        matchingTitle;
-      return container;
-    }
-
-    // 2. Procurar itens que contenham o telefone ou botão 'Conversar com...' e IGNORAR 'Arquivadas'
-    const items = document.querySelectorAll(
-      "#pane-side div[role='listitem'], div[aria-label*='Resultados'] div[role='listitem'], #pane-side div[data-testid='cell-frame-container']"
-    );
-
-    for (const item of items) {
-      const text = item.innerText || "";
-      const textLower = text.toLowerCase();
-
-      // Ignora expressamente qualquer elemento de Arquivadas
-      if (
-        textLower.includes("arquivada") ||
-        textLower.includes("archived") ||
-        item.querySelector("span[data-icon*='archive']") ||
-        item.querySelector("button[aria-label*='Arquivada']")
-      ) {
-        continue;
-      }
-
-      // Se encontrar dígitos do contato ou texto de conversa
-      if (
-        text.replace(/\D/g, "").includes(shortDigits) ||
-        textLower.includes("conversar com") ||
-        textLower.includes("chat with")
-      ) {
-        return item;
-      }
-    }
-
-    return null;
-  }
-
-  // 8. Abre qualquer telefone de forma ULTRA RÁPIDA (Busca com Polling de 30ms + Fallback Imediato)
-  function openChatWithoutReload(phone, text) {
-    try {
-      const cleanPhone = phone.replace(/\D/g, "");
-      const fullPhone = cleanPhone.length <= 11 ? "55" + cleanPhone : cleanPhone;
-      const shortDigits = cleanPhone.length > 8 ? cleanPhone.slice(-8) : cleanPhone;
-
-      console.log("[Sankhya Bridge] Busca Ultra Rápida para:", fullPhone);
-
-      // Localiza a caixa de busca principal da barra lateral
-      const searchBox =
-        document.querySelector("#side div[contenteditable='true']") ||
-        document.querySelector("div[data-tab='3']") ||
-        document.querySelector("#side div[role='textbox']") ||
-        document.querySelector("#side input[type='text']") ||
-        document.querySelector("div[aria-label*='Pesquisar']");
-
-      if (searchBox) {
-        simulateHumanClick(searchBox);
-
-        // Digita imediatamente o telefone
-        document.execCommand("selectAll", false, null);
-        document.execCommand("insertText", false, fullPhone);
-        searchBox.dispatchEvent(new InputEvent("input", { bubbles: true, inputType: "insertText", data: fullPhone }));
-        searchBox.dispatchEvent(new Event("change", { bubbles: true }));
-
-        // Dispara Enter imediatamente (10ms)
-        setTimeout(() => {
-          const enterEvent = new KeyboardEvent("keydown", {
-            key: "Enter",
-            code: "Enter",
-            keyCode: 13,
-            which: 13,
-            bubbles: true,
-          });
-          searchBox.dispatchEvent(enterEvent);
-        }, 10);
-
-        // Polling ultra rápido a cada 30ms (localiza e clica sem delay perceptível)
-        let searchAttempts = 0;
-        const searchInterval = setInterval(() => {
-          searchAttempts++;
-
-          const contactItem = findContactSearchResult(fullPhone);
-
-          if (contactItem) {
-            clearInterval(searchInterval);
-            simulateHumanClick(contactItem);
-            console.log("[Sankhya Bridge] Contato aberto instantaneamente!");
-
-            if (text) {
-              waitForActiveChatAndSend(text);
-            }
-            return;
-          }
-
-          // Se após 300ms (10 tentativas de 30ms) não achou na busca, aciona o deep link SPA imediatamente
-          if (searchAttempts >= 10) {
-            clearInterval(searchInterval);
-            const a = document.createElement("a");
-            a.href = `https://web.whatsapp.com/send?phone=${fullPhone}${text ? `&text=${encodeURIComponent(text)}` : ""}`;
-            document.body.appendChild(a);
-            a.click();
-            setTimeout(() => a.remove(), 200);
-
-            if (text) {
-              waitForActiveChatAndSend(text);
-            }
-          }
-        }, 30);
-      } else {
-        // Fallback SPA Imediato
-        const a = document.createElement("a");
-        a.href = `https://web.whatsapp.com/send?phone=${fullPhone}${text ? `&text=${encodeURIComponent(text)}` : ""}`;
-        document.body.appendChild(a);
-        a.click();
-        setTimeout(() => a.remove(), 200);
-
-        if (text) {
-          waitForActiveChatAndSend(text);
-        }
-      }
-
-      return true;
-    } catch (e) {
-      console.error("[Sankhya Bridge] Erro ao abrir conversa:", e);
-      return false;
-    }
-  }
-
-  // 9. Auto-enviar quando a página for aberta via URL send?phone=...
-  function checkAutoSendUrl() {
-    if (window.location.href.includes("send?phone=") || window.location.href.includes("send/?phone=")) {
-      console.log("[Sankhya Bridge] Deep link send?phone ativo. Aguardando chat renderizar...");
-      let attempts = 0;
-      const interval = setInterval(() => {
-        attempts++;
-        const messageInput = findMessageInput();
-
-        const sendBtn =
-          document.querySelector("#main footer button[aria-label*='Enviar']") ||
-          document.querySelector("#main footer button[aria-label*='Send']") ||
-          document.querySelector("#main footer span[data-icon='send']") ||
-          document.querySelector("#main footer span[data-icon='wds-ic-send-filled']") ||
-          document.querySelector("#main footer button:has(span[data-icon*='send'])");
-
-        if (sendBtn) {
-          clearInterval(interval);
-          setTimeout(() => {
-            simulateHumanClick(sendBtn);
-            console.log("[Sankhya Bridge] Envio automático concluído no deep link!");
-          }, 200);
-        } else if (messageInput && attempts >= 6 && messageInput.innerText.trim().length > 0) {
-          clearInterval(interval);
-          const enterEvent = new KeyboardEvent("keydown", {
-            key: "Enter",
-            code: "Enter",
-            keyCode: 13,
-            which: 13,
-            bubbles: true,
-          });
-          messageInput.dispatchEvent(enterEvent);
-          console.log("[Sankhya Bridge] Envio automático via Enter concluído!");
-        }
-
-        if (attempts >= 40) {
-          clearInterval(interval);
-        }
-      }, 100);
-    }
-  }
-
-  // 10. Heartbeat e monitor de conversa ativa
-  setInterval(() => {
-    notifyBridgeReady();
-    const currentChat = extractActiveChatPhone();
-    if (currentChat && currentChat !== lastSelectedPhone) {
-      lastSelectedPhone = currentChat;
-      console.log("[Sankhya Bridge] Chat ativo alterado:", currentChat);
+    function notifyReady() {
       try {
-        window.parent.postMessage(
-          {
-            type: "SANKHYA_CHAT_CHANGED",
-            phoneOrName: currentChat,
+        window.top.postMessage({ type: "WHATSAPP_EVENT", event: "whatsapp_ready", timestamp: Date.now() }, "*");
+      } catch (e) {}
+      try {
+        window.parent.postMessage({ type: "WHATSAPP_EVENT", event: "whatsapp_ready", timestamp: Date.now() }, "*");
+      } catch (e) {}
+    }
+
+    // Heartbeat e monitor de troca de chat
+    setInterval(() => {
+      notifyReady();
+      if (window.WhatsAppDOM) {
+        const current = window.WhatsAppDOM.getActiveChatInfo();
+        const identifier = current.phone || current.name;
+        if (identifier && identifier !== lastChat) {
+          lastChat = identifier;
+          try {
+            const evtPayload = {
+              type: "WHATSAPP_EVENT",
+              event: "chat_changed",
+              timestamp: Date.now(),
+              data: { phoneOrName: identifier, name: current.name, phone: current.phone },
+            };
+            window.top.postMessage(evtPayload, "*");
+            window.parent.postMessage(evtPayload, "*");
+          } catch (e) {}
+        }
+      }
+    }, 1200);
+
+    // Manipulador central de comandos semânticos
+    async function handleCommand(command) {
+      const { requestId, action, payload } = command;
+      console.log("[WhatsApp Skill] Comando recebido no iframe:", action, payload);
+
+      try {
+        let data = {};
+        switch (action) {
+          case "status":
+            data = await window.WhatsAppController.status();
+            break;
+          case "get_current_chat":
+            data = await window.WhatsAppController.getCurrentChat();
+            break;
+          case "find_contact":
+            data = await window.WhatsAppController.findContact(payload?.contact || payload?.phone || payload);
+            break;
+          case "open_chat":
+            data = await window.WhatsAppController.openChat(payload);
+            break;
+          case "type_message":
+            data = await window.WhatsAppController.typeMessage(payload);
+            break;
+          case "send_message":
+          case "SANKHYA_SEND_TEXT":
+            data = await window.WhatsAppController.sendMessage(payload || { message: command.text });
+            break;
+          default:
+            throw new Error(`INVALID_COMMAND: Ação '${action}' não é suportada pela Skill.`);
+        }
+
+        return {
+          type: "WHATSAPP_RESPONSE",
+          requestId,
+          success: true,
+          data,
+        };
+      } catch (err) {
+        console.error("[WhatsApp Skill] Erro ao executar comando:", err);
+        return {
+          type: "WHATSAPP_RESPONSE",
+          requestId,
+          success: false,
+          error: {
+            code: err.message?.startsWith("TIMEOUT") ? "TIMEOUT" : "COMMAND_FAILED",
+            message: err.message || "Falha na execução do comando.",
           },
-          "*"
-        );
-      } catch (e) {}
-    }
-  }, 1200);
-
-  // 11. Ouvinte de mensagens vindas da aplicação Sankhya (Motor Unificado)
-  window.addEventListener("message", (event) => {
-    if (!event.data || typeof event.data !== "object") return;
-
-    if (event.data.type === "SANKHYA_SEND_TEXT") {
-      const { text } = event.data;
-      if (text) {
-        waitForActiveChatAndSend(text);
+        };
       }
-    } else if (event.data.type === "SANKHYA_NAVIGATE_PHONE") {
-      const { phone, text } = event.data;
-      if (phone) {
-        openChatWithoutReload(phone, text);
-      }
-    } else if (event.data.type === "SANKHYA_REQUEST_CURRENT_CHAT") {
-      const phone = extractActiveChatPhone();
-      try {
-        window.parent.postMessage(
-          { type: "SANKHYA_CURRENT_CHAT_RESPONSE", phoneOrName: phone },
-          "*"
-        );
-      } catch (e) {}
     }
-  });
 
-  // Inicialização
-  setTimeout(() => {
-    notifyBridgeReady();
-    checkAutoSendUrl();
-  }, 300);
+    // Escutar postMessage do Next.js (parent frame ou iframe)
+    window.addEventListener("message", async (event) => {
+      if (!event.data || typeof event.data !== "object") return;
+
+      // Suporte ao protocolo semântico WHATSAPP_COMMAND
+      if (event.data.type === "WHATSAPP_COMMAND") {
+        const response = await handleCommand(event.data);
+        try {
+          window.top.postMessage(response, "*");
+        } catch (e) {}
+        try {
+          window.parent.postMessage(response, "*");
+        } catch (e) {}
+        try {
+          event.source?.postMessage(response, "*");
+        } catch (e) {}
+      } 
+      // Compatibilidade com eventos legados da ponte Sankhya
+      else if (event.data.type === "SANKHYA_SEND_TEXT") {
+        await handleCommand({ requestId: "legacy", action: "send_message", payload: { message: event.data.text } });
+      } else if (event.data.type === "SANKHYA_OPEN_CHAT") {
+        await handleCommand({ requestId: "legacy", action: "open_chat", payload: { phone: event.data.phone, message: event.data.text } });
+      }
+    });
+
+    setTimeout(notifyReady, 500);
+  }
 })();

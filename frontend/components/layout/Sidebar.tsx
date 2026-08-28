@@ -9,6 +9,7 @@ import {
   LayoutDashboard,
   PhoneCall,
   Users,
+  MessageSquare,
   LogOut,
   Wallet,
   ChevronLeft,
@@ -19,6 +20,7 @@ import { cn } from '@/lib/utils';
 const navItems = [
   { href: '/cobranca', label: 'Dashboard', icon: LayoutDashboard },
   { href: '/cobranca/fila', label: 'Fila de Cobrança', icon: PhoneCall },
+  { href: '/whatsapp', label: 'WhatsApp Web', icon: MessageSquare },
   { href: '/clientes', label: 'Clientes', icon: Users },
 ];
 

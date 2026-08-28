@@ -52,8 +52,19 @@
 
 ### 25.8. Ajustes de Navegação & Limpeza de Interface
 - **Remoção da Aba Agenda ([Sidebar.tsx](file:///d:/Projeto/Financeiro%20Sankhya/frontend/components/layout/Sidebar.tsx))**: Removido o item `/agenda` e o ícone `Calendar` do menu de navegação lateral para simplificar a experiência do usuário.
+- **Inclusão da Aba WhatsApp Web ([Sidebar.tsx](file:///d:/Projeto/Financeiro%20Sankhya/frontend/components/layout/Sidebar.tsx))**: Adicionado o item `/whatsapp` com o ícone `MessageSquare` no menu lateral para acesso direto à interface completa do WhatsApp Web Integrado.
 
-### 25.9. Status dos Compiladores
+### 25.9. Módulo WhatsApp Web Skill (Clean Architecture & Especificação V3) ([Skill Especificação](file:///d:/Projeto/Financeiro%20Sankhya/Skill%20WhatsApp%20Web%20%E2%80%94%20Especifica%C3%A7%C3%A3o%20para%20Agente%20de%20Desenvolvimento.md))
+- **Arquitetura em Camadas (`extension/src/`)**:
+  - `selectors.js`: Seletores CSS e Fallbacks centralizados (`messageInput`, `sendButton`, `searchInput`, `activeChatHeaderTitle`).
+  - `wait.js`: Engine de espera assíncrona baseada em `MutationObserver` e `Promise` (`waitForElement`, `waitForCondition`).
+  - `dom.js`: Injeção nativa de eventos de baixo nível (`ClipboardEvent paste`, `execCommand`, `beforeinput`, `KeyboardEvent Enter`).
+  - `controller.js`: Manipulador de Habilidades Semânticas (`status`, `get_current_chat`, `open_chat`, `type_message`, `send_message`).
+  - `content.js`: Orquestrador de mensagens e motor de eventos `WHATSAPP_EVENT` / `WHATSAPP_COMMAND`.
+- **Manifest V3 & Subframes (`manifest.json`)**: Configurado `"all_frames": true` permitindo a injeção transparente e automação dentro do iframe do WhatsApp Web.
+- **Ponte Frontend (`whatsappBridge.ts`)**: Suporte nativo ao protocolo de comandos semânticos (`sendCommand`) e escuta contínua de eventos do WhatsApp Web.
+
+### 25.10. Status dos Compiladores
 - **Backend NestJS**: `npx tsc --noEmit` ✅ 0 erros
 - **Frontend Next.js**: `npx tsc --noEmit` ✅ 0 erros
 

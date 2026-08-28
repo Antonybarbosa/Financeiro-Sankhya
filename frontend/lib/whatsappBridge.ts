@@ -1,13 +1,35 @@
-// Ponte de comunicação entre a aplicação Next.js e a extensão / Iframe do WhatsApp Web
+// Ponte de comunicação bidirecional com a Skill do WhatsApp Web e Console de Testes
+
+import { useWhatsAppTestStore } from '@/store/whatsappTestStore';
 
 export interface WhatsAppChatInfo {
   phoneOrName: string;
+  name?: string;
+  phone?: string | null;
 }
 
 export type WhatsAppChatChangeListener = (info: WhatsAppChatInfo) => void;
 
+export interface WhatsAppCommandPayload {
+  action: 'status' | 'get_current_chat' | 'find_contact' | 'open_chat' | 'type_message' | 'send_message' | string;
+  payload?: any;
+  requestId?: string;
+}
+
+export interface WhatsAppResponse {
+  type: 'WHATSAPP_RESPONSE';
+  requestId: string;
+  success: boolean;
+  data?: any;
+  error?: {
+    code: string;
+    message: string;
+  };
+}
+
 class WhatsAppBridge {
   private listeners: WhatsAppChatChangeListener[] = [];
+  private pendingRequests: Map<string, { resolve: (res: any) => void; reject: (err: any) => void; startTime: number; action: string }> = new Map();
   private extensionActive = false;
 
   constructor() {
@@ -19,11 +41,64 @@ class WhatsAppBridge {
   private handleWindowMessage(event: MessageEvent) {
     if (!event.data || typeof event.data !== 'object') return;
 
-    if (event.data.type === 'SANKHYA_BRIDGE_READY') {
+    const data = event.data;
+
+    // 1. Respostas de Comandos Semânticos (WHATSAPP_RESPONSE)
+    if (data.type === 'WHATSAPP_RESPONSE' && data.requestId) {
+      const pending = this.pendingRequests.get(data.requestId);
+      if (pending) {
+        const durationMs = Date.now() - pending.startTime;
+        this.pendingRequests.delete(data.requestId);
+
+        useWhatsAppTestStore.getState().addLog({
+          direction: 'IN',
+          type: 'WHATSAPP_RESPONSE',
+          action: pending.action,
+          payload: { requestId: data.requestId },
+          data: data.data,
+          error: data.error,
+          durationMs,
+        });
+
+        if (data.success) {
+          pending.resolve(data.data);
+        } else {
+          pending.reject(new Error(data.error?.message || 'Comando falhou'));
+        }
+      }
+    }
+
+    // 2. Eventos da Interface (WHATSAPP_EVENT)
+    else if (data.type === 'WHATSAPP_EVENT') {
+      const evt = data.event;
+
+      useWhatsAppTestStore.getState().addLog({
+        direction: 'EVENT',
+        type: 'WHATSAPP_EVENT',
+        action: evt,
+        data: data.data,
+      });
+
+      if (evt === 'whatsapp_ready') {
+        this.extensionActive = true;
+        useWhatsAppTestStore.getState().setExtensionReady(true);
+        useWhatsAppTestStore.getState().setLastHeartbeat(new Date().toLocaleTimeString('pt-BR'));
+      } else if (evt === 'chat_changed') {
+        const chatData = data.data || {};
+        const phoneOrName = chatData.phoneOrName || chatData.name || chatData.phone || '';
+        useWhatsAppTestStore.getState().setActiveChat(phoneOrName);
+        this.notifyListeners({ phoneOrName, name: chatData.name, phone: chatData.phone });
+      }
+    }
+
+    // 3. Heartbeats Legados
+    else if (data.type === 'SANKHYA_BRIDGE_READY') {
       this.extensionActive = true;
-      console.log('[Sankhya Frontend] Extensão WhatsApp Bridge detectada e ativa.');
-    } else if (event.data.type === 'SANKHYA_CHAT_CHANGED' || event.data.type === 'SANKHYA_CURRENT_CHAT_RESPONSE') {
-      const phoneOrName = event.data.phoneOrName || '';
+      useWhatsAppTestStore.getState().setExtensionReady(true);
+      useWhatsAppTestStore.getState().setLastHeartbeat(new Date().toLocaleTimeString('pt-BR'));
+    } else if (data.type === 'SANKHYA_CHAT_CHANGED' || data.type === 'SANKHYA_CURRENT_CHAT_RESPONSE') {
+      const phoneOrName = data.phoneOrName || '';
+      useWhatsAppTestStore.getState().setActiveChat(phoneOrName);
       this.notifyListeners({ phoneOrName });
     }
   }
@@ -39,62 +114,93 @@ class WhatsAppBridge {
     this.listeners.forEach((listener) => listener(info));
   }
 
-  public sendTextToWhatsApp(text: string, iframeRef?: HTMLIFrameElement | null) {
-    const payload = { type: 'SANKHYA_SEND_TEXT', text };
-    
-    // 1. Disparar para todos os iframes do documento (sem recarregar o iframe!)
-    if (typeof document !== 'undefined') {
-      const iframes = document.querySelectorAll('iframe');
-      iframes.forEach((ifr) => {
-        try {
-          if (ifr.contentWindow) {
-            ifr.contentWindow.postMessage(payload, '*');
-          }
-        } catch (e) {}
+  /**
+   * Envia comando semântico e retorna Promise com resposta e medição de tempo
+   */
+  public sendCommandAsync(cmd: WhatsAppCommandPayload, iframeRef?: HTMLIFrameElement | null, timeoutMs = 25000): Promise<any> {
+    return new Promise((resolve, reject) => {
+      const requestId = cmd.requestId || 'req_' + Math.random().toString(36).substring(2, 9);
+      const payload = {
+        type: 'WHATSAPP_COMMAND',
+        requestId,
+        action: cmd.action,
+        payload: cmd.payload || {},
+      };
+
+      const timer = setTimeout(() => {
+        if (this.pendingRequests.has(requestId)) {
+          this.pendingRequests.delete(requestId);
+          useWhatsAppTestStore.getState().addLog({
+            direction: 'SYS',
+            type: 'TIMEOUT',
+            action: cmd.action,
+            error: { code: 'TIMEOUT', message: `Comando '${cmd.action}' expirou após ${timeoutMs}ms` },
+          });
+          reject(new Error(`Timeout: Sem resposta da Skill para '${cmd.action}' em ${timeoutMs}ms`));
+        }
+      }, timeoutMs);
+
+      this.pendingRequests.set(requestId, {
+        resolve: (res) => {
+          clearTimeout(timer);
+          resolve(res);
+        },
+        reject: (err) => {
+          clearTimeout(timer);
+          reject(err);
+        },
+        startTime: Date.now(),
+        action: cmd.action,
       });
-    }
 
-    // 2. Disparar diretamente para a referência se fornecida
-    if (iframeRef && iframeRef.contentWindow) {
-      try {
-        iframeRef.contentWindow.postMessage(payload, '*');
-      } catch (e) {}
-    }
+      useWhatsAppTestStore.getState().addLog({
+        direction: 'OUT',
+        type: 'WHATSAPP_COMMAND',
+        action: cmd.action,
+        payload: cmd.payload,
+      });
 
-    // 3. Disparar para o window
-    if (typeof window !== 'undefined') {
-      window.postMessage(payload, '*');
-    }
+      // Disparar para o iframeRef específico
+      if (iframeRef && iframeRef.contentWindow) {
+        try {
+          iframeRef.contentWindow.postMessage(payload, '*');
+        } catch (e) {}
+      }
+
+      // Broadcast para todos os iframes presentes na página (incluindo o WhatsApp Web)
+      if (typeof document !== 'undefined') {
+        const iframes = document.querySelectorAll('iframe');
+        iframes.forEach((ifr) => {
+          try {
+            ifr.contentWindow?.postMessage(payload, '*');
+          } catch (e) {}
+        });
+      }
+
+      // Broadcast na janela principal
+      if (typeof window !== 'undefined') {
+        try {
+          window.postMessage(payload, '*');
+        } catch (e) {}
+      }
+    });
   }
 
-  public navigateToPhone(phone: string, text?: string, iframeRef?: HTMLIFrameElement | null) {
-    const cleanPhone = phone.replace(/\D/g, '');
-    const fullPhone = cleanPhone.length <= 11 ? '55' + cleanPhone : cleanPhone;
-    const payload = { type: 'SANKHYA_NAVIGATE_PHONE', phone: fullPhone, text: text || '' };
+  public sendTextToWhatsApp(text: string, iframeRef?: HTMLIFrameElement | null) {
+    return this.sendCommandAsync({ action: 'send_message', payload: { message: text } }, iframeRef).catch((err) => {
+      console.warn('[WhatsApp Skill] Aviso em sendTextToWhatsApp:', err.message);
+    });
+  }
 
-    console.log('[Sankhya Bridge] Solicitando abertura de chat sem recarregar:', fullPhone);
+  public openChat(phone: string, text?: string, iframeRef?: HTMLIFrameElement | null) {
+    if (!phone) return Promise.resolve();
+    const digits = phone.replace(/\D/g, '');
+    if (digits.length < 8) return Promise.resolve();
+    const fullPhone = digits.length <= 11 && !digits.startsWith('55') ? '55' + digits : digits;
 
-    // Envia instrução postMessage para o iframe (abre via busca nativa sem recarregar a página!)
-    if (typeof document !== 'undefined') {
-      const iframes = document.querySelectorAll('iframe');
-      iframes.forEach((ifr) => {
-        try {
-          if (ifr.contentWindow) {
-            ifr.contentWindow.postMessage(payload, '*');
-          }
-        } catch (e) {}
-      });
-    }
-
-    if (iframeRef && iframeRef.contentWindow) {
-      try {
-        iframeRef.contentWindow.postMessage(payload, '*');
-      } catch (e) {}
-    }
-
-    if (typeof window !== 'undefined') {
-      window.postMessage(payload, '*');
-    }
+    return this.sendCommandAsync({ action: 'open_chat', payload: { phone: fullPhone, message: text } }, iframeRef).catch((err) => {
+      console.warn('[WhatsApp Skill] Aviso em openChat:', err.message);
+    });
   }
 
   public isExtensionActive() {

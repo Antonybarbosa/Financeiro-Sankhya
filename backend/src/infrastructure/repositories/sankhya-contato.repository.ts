@@ -189,16 +189,56 @@ export class SankhyaContatoRepository implements IContatoRepository {
   }
 
   async save(contato: Contato): Promise<Contato> {
-    await this.sankhyaGateway.saveRecordTelemarketing(
-      { NUREL: contato.id },
-      ['COMENTARIOS', 'AD_MSG', 'DHPROXCHAM', 'PENDENTE'],
-      [
-        contato.comentarios || '',
-        contato.mensagem || '',
-        contato.proximaChamada ? this.formatDateTime(contato.proximaChamada) : '',
-        contato.pendente ? 'S' : 'N',
-      ],
-    );
+    let targetNurel = contato.id;
+
+    // Se NUREL não foi informado ou é 0, busca atendimento pendente para o parceiro
+    if (!targetNurel || targetNurel === 0) {
+      try {
+        const rows = await this.sankhyaGateway.executeQuery(`
+          SELECT TEL.NUREL
+          FROM TGFTEL TEL
+          WHERE TEL.CODPARC = ${contato.parceiroId}
+            AND TEL.PENDENTE = 'S'
+          ORDER BY TEL.DHCHAMADA DESC
+        `);
+
+        if (rows && rows.length > 0 && rows[0].NUREL) {
+          targetNurel = parseInt(rows[0].NUREL, 10);
+        }
+      } catch (err) {
+        console.error('[SankhyaContatoRepository] Erro ao buscar NUREL pendente para parceiro:', err);
+      }
+    }
+
+    if (targetNurel && targetNurel > 0) {
+      const comentariosTrunc = (contato.comentarios || contato.mensagem || '').substring(0, 290);
+      const msgTrunc = (contato.mensagem || '').substring(0, 290);
+
+      await this.sankhyaGateway.saveRecordTelemarketing(
+        { NUREL: targetNurel },
+        ['COMENTARIOS', 'AD_MSG', 'DHPROXCHAM', 'PENDENTE', 'SITUACAO'],
+        [
+          comentariosTrunc,
+          msgTrunc,
+          contato.proximaChamada ? this.formatDateTime(contato.proximaChamada) : '',
+          contato.pendente ? 'S' : 'N',
+          contato.pendente ? 'P' : 'C',
+        ],
+      );
+    } else {
+      // Se não encontrou NUREL pendente, finaliza qualquer pendência do parceiro via SQL
+      try {
+        await this.sankhyaGateway.executeQuery(`
+          UPDATE TGFTEL
+          SET PENDENTE = 'N', SITUACAO = 'C'
+          WHERE CODPARC = ${contato.parceiroId}
+            AND PENDENTE = 'S'
+        `);
+      } catch (err) {
+        console.error('[SankhyaContatoRepository] Erro ao atualizar pendências do parceiro:', err);
+      }
+    }
+
     return contato;
   }
 

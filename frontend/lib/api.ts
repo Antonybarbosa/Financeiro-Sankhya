@@ -687,4 +687,5 @@ export async function consultarCnpjPublico(cnpj: string): Promise<CnpjPublicoRes
   return null;
 }
 
+export { api };
 export default api;

@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { whatsappBridge } from '@/lib/whatsappBridge';
 import { SankhyaCustomerContextPanel } from './SankhyaCustomerContextPanel';
+import { WhatsAppSkillDiagnosticModal } from './WhatsAppSkillDiagnosticModal';
 import { useUIStore } from '@/store/uiStore';
 import {
   MessageSquare,
@@ -17,6 +18,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Building2,
+  Terminal,
 } from 'lucide-react';
 
 export function WhatsAppEmbeddedTab() {
@@ -25,6 +27,7 @@ export function WhatsAppEmbeddedTab() {
   const [extensionDetected, setExtensionDetected] = useState(false);
   const [iframeKey, setIframeKey] = useState(0);
   const [panelOpen, setPanelOpen] = useState(true);
+  const [diagnosticOpen, setDiagnosticOpen] = useState(false);
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
   const { isSidebarCollapsed, toggleSidebar } = useUIStore();
 
@@ -131,6 +134,16 @@ export function WhatsAppEmbeddedTab() {
 
         {/* Controles & Botão de Expansão do Painel */}
         <div className="flex items-center gap-2">
+          {/* Botão Console de Testes & Diagnóstico da Skill */}
+          <button
+            type="button"
+            onClick={() => setDiagnosticOpen(true)}
+            className="inline-flex items-center gap-1.5 rounded-lg border border-purple-200 bg-purple-50 text-purple-800 hover:bg-purple-100 px-3 py-1.5 text-xs font-bold transition-all shadow-2xs"
+            title="Abrir Console de Testes e Diagnóstico da Skill"
+          >
+            <Terminal className="h-4 w-4 text-purple-600" />
+            <span>Testes da Skill</span>
+          </button>
 
           <button
             type="button"
@@ -191,6 +204,13 @@ export function WhatsAppEmbeddedTab() {
           </div>
         )}
       </div>
+
+      {/* Modal Console de Testes & Diagnóstico da Skill */}
+      <WhatsAppSkillDiagnosticModal
+        open={diagnosticOpen}
+        onClose={() => setDiagnosticOpen(false)}
+        iframeRef={iframeRef.current}
+      />
     </div>
   );
 }

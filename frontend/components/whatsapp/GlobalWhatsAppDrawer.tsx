@@ -6,6 +6,7 @@ import { useWhatsAppStore } from '@/store/whatsappStore';
 import { useUIStore } from '@/store/uiStore';
 import { whatsappBridge } from '@/lib/whatsappBridge';
 import { SankhyaCustomerContextPanel } from './SankhyaCustomerContextPanel';
+import { WhatsAppSkillDiagnosticModal } from './WhatsAppSkillDiagnosticModal';
 import {
   MessageSquare,
   X,
@@ -16,6 +17,7 @@ import {
   ExternalLink,
   ShieldAlert,
   Info,
+  Terminal,
 } from 'lucide-react';
 
 export function GlobalWhatsAppDrawer() {
@@ -32,6 +34,7 @@ export function GlobalWhatsAppDrawer() {
   const [extensionDetected, setExtensionDetected] = useState(false);
   const [manualPhone, setManualPhone] = useState('');
   const [iframeKey, setIframeKey] = useState(0);
+  const [diagnosticOpen, setDiagnosticOpen] = useState(false);
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
 
   const isWhatsAppPageRoute = pathname === '/whatsapp';
@@ -112,6 +115,16 @@ export function GlobalWhatsAppDrawer() {
 
         {/* Controles do Drawer */}
         <div className="flex items-center gap-2">
+          {/* Botão Console de Testes & Diagnóstico da Skill */}
+          <button
+            type="button"
+            onClick={() => setDiagnosticOpen(true)}
+            className="inline-flex items-center gap-1 bg-purple-950 text-purple-300 hover:bg-purple-900 border border-purple-800 px-2.5 py-1 rounded text-[11px] font-bold transition-colors shadow-2xs"
+            title="Abrir Console de Testes da Skill WhatsApp"
+          >
+            <Terminal className="h-3.5 w-3.5 text-purple-400" />
+            <span>Testes da Skill</span>
+          </button>
 
           <button
             type="button"
@@ -162,6 +175,13 @@ export function GlobalWhatsAppDrawer() {
           />
         </div>
       </div>
+
+      {/* Modal Console de Testes & Diagnóstico da Skill */}
+      <WhatsAppSkillDiagnosticModal
+        open={diagnosticOpen}
+        onClose={() => setDiagnosticOpen(false)}
+        iframeRef={iframeRef.current}
+      />
     </div>
   );
 }
