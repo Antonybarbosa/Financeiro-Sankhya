@@ -1,6 +1,45 @@
 (function () {
   window.WhatsAppDOM = {
-    // 1. Simulação Humana de Digitação/Colagem para o Editor Lexical (React 18)
+    // 1. Digitação especializada para a Barra de Pesquisa (#side)
+    typeSearch: function (element, text) {
+      if (!element) return false;
+
+      element.focus();
+
+      // Limpar campo de pesquisa
+      try {
+        const selection = window.getSelection();
+        const range = document.createRange();
+        range.selectNodeContents(element);
+        selection.removeAllRanges();
+        selection.addRange(range);
+        document.execCommand("delete", false, null);
+      } catch (e) {}
+
+      // Inserir texto nativamente
+      let inserted = false;
+      try {
+        inserted = document.execCommand("insertText", false, text);
+      } catch (e) {}
+
+      if (!inserted || !element.textContent?.trim()) {
+        try {
+          element.textContent = text;
+        } catch (e) {}
+      }
+
+      // Disparar eventos de input que acionam a busca do WhatsApp
+      try {
+        element.dispatchEvent(new InputEvent("beforeinput", { bubbles: true, cancelable: true, inputType: "insertText", data: text }));
+        element.dispatchEvent(new InputEvent("input", { bubbles: true, cancelable: true, inputType: "insertText", data: text }));
+        element.dispatchEvent(new Event("input", { bubbles: true }));
+        element.dispatchEvent(new Event("change", { bubbles: true }));
+      } catch (e) {}
+
+      return true;
+    },
+
+    // 2. Simulação Humana de Digitação/Colagem para o Editor Lexical (React 18 no #main)
     simulateHumanTyping: function (element, text) {
       if (!element) return false;
 
@@ -61,7 +100,7 @@
       return this.simulateHumanTyping(element, text);
     },
 
-    // 2. Simulação Humana de Clique Físico com Coordenadas Reais de Tela (React 18)
+    // 3. Simulação Humana de Clique Físico com Coordenadas Reais de Tela (React 18)
     simulateHumanClick: function (element) {
       if (!element) return false;
 
@@ -115,7 +154,7 @@
       }
     },
 
-    // 3. Executa o clique de envio físico ou tecla Enter
+    // 4. Executa o clique de envio físico ou tecla Enter
     clickSendOrPressEnter: function (messageInput) {
       // 1. Procurar botão de enviar no DOM
       const sendBtnSelectors = window.WhatsAppSelectors.sendButton;
@@ -147,7 +186,7 @@
       return false;
     },
 
-    // 4. Extrai o telefone/nome da conversa ativa
+    // 5. Extrai o telefone/nome da conversa ativa
     getActiveChatInfo: function () {
       try {
         const titleSelectors = window.WhatsAppSelectors.activeChatHeaderTitle;
