@@ -33,8 +33,6 @@ import {
   ChevronRight,
   Clock,
   PhoneCall,
-  UserPlus,
-  ArrowRight,
 } from 'lucide-react';
 import { WhatsAppTemplatesConfigModal } from '@/components/cobranca/WhatsAppTemplatesConfigModal';
 
@@ -81,10 +79,8 @@ export function SankhyaCustomerContextPanel({
   const { openWhatsAppWithContact } = useWhatsAppStore();
   const { data: atendimentosData, isLoading: loadingFila } = useAtendimentosHoje();
 
-  // Enviar para número específico
-  const [mostrarEnvioNumero, setMostrarEnvioNumero] = useState(false);
-  const [numeroEspecifico, setNumeroEspecifico] = useState('');
-  const [buscandoNumero, setBuscandoNumero] = useState(false);
+  // Campo de telefone editável sempre visível
+  const [telefoneDigitado, setTelefoneDigitado] = useState(activePhoneOrName || '');
 
   const [filaBusca, setFilaBusca] = useState('');
   const [configModalOpen, setConfigModalOpen] = useState(false);
@@ -94,6 +90,13 @@ export function SankhyaCustomerContextPanel({
   // Viewers
   const [boletoTituloId, setBoletoTituloId] = useState<number | null>(null);
   const [danfeNumNota, setDanfeNumNota] = useState<number | null>(null);
+
+  // Sincronizar o campo de telefone quando activePhoneOrName mudar
+  useEffect(() => {
+    if (activePhoneOrName) {
+      setTelefoneDigitado(activePhoneOrName);
+    }
+  }, [activePhoneOrName]);
 
   // Lista da Fila de Cobrança filtrada
   const filaAtendimento = useMemo(() => {
@@ -206,7 +209,16 @@ export function SankhyaCustomerContextPanel({
 
     setSending(true);
     try {
-      whatsappBridge.sendTextToWhatsApp(mensagemEditada, iframeRef);
+      const cleanPhone = telefoneDigitado.replace(/\D/g, '');
+
+      // Se o usuário digitou um telefone específico diferente do chat aberto
+      if (cleanPhone.length >= 8 && (!activePhoneOrName || !activePhoneOrName.includes(cleanPhone.slice(-8)))) {
+        whatsappBridge.navigateToPhone(cleanPhone, mensagemEditada, iframeRef);
+        openWhatsAppWithContact(cleanPhone);
+      } else {
+        // Envia diretamente no chat ativo
+        whatsappBridge.sendTextToWhatsApp(mensagemEditada, iframeRef);
+      }
 
       if (cliente) {
         await api.post('/api/whatsapp/registrar-historico', {
@@ -230,33 +242,6 @@ export function SankhyaCustomerContextPanel({
     toast.success('PIX Enviado!', 'Dados do PIX injetados e disparados no chat do WhatsApp.');
   };
 
-  // Abrir conversa para um número específico
-  const handleAbrirNumeroEspecifico = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const clean = numeroEspecifico.replace(/\D/g, '');
-    if (clean.length < 8) {
-      toast.error('Número inválido', 'Digite o DDD e o número do WhatsApp.');
-      return;
-    }
-
-    setBuscandoNumero(true);
-    try {
-      // 1. Notifica a ponte para carregar o número no WhatsApp Web
-      whatsappBridge.navigateToPhone(clean, mensagemEditada, iframeRef);
-
-      // 2. Atualiza o estado global
-      openWhatsAppWithContact(clean);
-
-      toast.success('Abrindo Conversa', `Carregando chat com ${numeroEspecifico} no WhatsApp...`);
-      setMostrarEnvioNumero(false);
-      setNumeroEspecifico('');
-    } catch (err) {
-      toast.error('Erro ao abrir', 'Não foi possível carregar o número.');
-    } finally {
-      setBuscandoNumero(false);
-    }
-  };
-
   return (
     <div className="h-full flex flex-col bg-white border-l border-gray-200 overflow-y-auto">
       {/* Header do Painel Contextual */}
@@ -275,65 +260,15 @@ export function SankhyaCustomerContextPanel({
           </div>
         </div>
 
-        <div className="flex items-center gap-1">
-          <button
-            type="button"
-            onClick={() => setMostrarEnvioNumero(!mostrarEnvioNumero)}
-            className={`p-1.5 rounded-lg transition-colors text-xs font-bold flex items-center gap-1 ${
-              mostrarEnvioNumero ? 'bg-emerald-600 text-white' : 'text-gray-600 hover:bg-white/80'
-            }`}
-            title="Enviar para número específico"
-          >
-            <UserPlus className="h-4 w-4" />
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setConfigModalOpen(true)}
-            className="p-1.5 text-gray-500 hover:text-emerald-700 hover:bg-white/80 rounded-lg transition-colors"
-            title="Configurar Modelos de Mensagem"
-          >
-            <Settings className="h-4 w-4" />
-          </button>
-        </div>
+        <button
+          type="button"
+          onClick={() => setConfigModalOpen(true)}
+          className="p-1.5 text-gray-500 hover:text-emerald-700 hover:bg-white/80 rounded-lg transition-colors"
+          title="Configurar Modelos de Mensagem"
+        >
+          <Settings className="h-4 w-4" />
+        </button>
       </div>
-
-      {/* Caixa de Envio para Número Específico (Collapsible) */}
-      {mostrarEnvioNumero && (
-        <form onSubmit={handleAbrirNumeroEspecifico} className="p-3 bg-gray-900 text-white border-b border-gray-800 space-y-2">
-          <div className="flex items-center justify-between">
-            <span className="text-[11px] font-extrabold text-emerald-400 uppercase tracking-wider">
-              Enviar para Número Específico
-            </span>
-            <button
-              type="button"
-              onClick={() => setMostrarEnvioNumero(false)}
-              className="text-[10px] text-gray-400 hover:text-white"
-            >
-              Fechar
-            </button>
-          </div>
-
-          <div className="flex items-center gap-1.5">
-            <input
-              type="text"
-              placeholder="DDD + Número (ex: 11 99999-8888)..."
-              value={numeroEspecifico}
-              onChange={(e) => setNumeroEspecifico(e.target.value)}
-              className="flex-1 rounded-lg bg-gray-800 border border-gray-700 px-2.5 py-1.5 text-xs text-white placeholder-gray-400 focus:border-emerald-500 focus:outline-none"
-              autoFocus
-            />
-            <button
-              type="submit"
-              disabled={buscandoNumero || !numeroEspecifico.trim()}
-              className="rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-extrabold text-white hover:bg-emerald-700 disabled:opacity-50 transition-colors shrink-0 flex items-center gap-1"
-            >
-              {buscandoNumero ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ArrowRight className="h-3.5 w-3.5" />}
-              Abrir
-            </button>
-          </div>
-        </form>
-      )}
 
       {/* PARTE SUPERIOR: Detalhes do Cliente e Caixa de Envio */}
       <div className="p-3 space-y-3 border-b border-gray-200 bg-white">
@@ -439,45 +374,71 @@ export function SankhyaCustomerContextPanel({
               )}
             </div>
           </>
-        ) : (
-          <div className="rounded-lg border border-gray-200 bg-gray-50/60 p-2 text-center text-xs text-gray-500">
-            <p className="font-semibold text-gray-700">Chat do WhatsApp Web Ativo</p>
-            <p className="text-[10px] text-gray-400">
-              Digite uma mensagem abaixo ou selecione um cliente da fila para carregar os títulos.
-            </p>
+        ) : null}
+
+        {/* Formulário de Envio: Telefone Destinatário + Mensagem (SEMPRE VISÍVEIS) */}
+        <div className="space-y-2 pt-1 border-t border-gray-100">
+          <div>
+            <label className="text-[11px] font-bold text-gray-700 flex items-center justify-between mb-1">
+              <span className="flex items-center gap-1">
+                <Phone className="h-3.5 w-3.5 text-emerald-600" />
+                Telefone Destinatário (WhatsApp):
+              </span>
+              <span className="text-[10px] text-gray-400 font-normal">
+                {cliente ? 'Cliente Selecionado' : 'Digite o número'}
+              </span>
+            </label>
+            <input
+              type="text"
+              value={telefoneDigitado}
+              onChange={(e) => {
+                setTelefoneDigitado(e.target.value);
+                const digits = e.target.value.replace(/\D/g, '');
+                if (digits.length >= 8) {
+                  openWhatsAppWithContact(digits);
+                }
+              }}
+              placeholder="Ex: (11) 99999-8888 ou 5511999998888..."
+              className="w-full rounded-lg border border-gray-300 px-2.5 py-1.5 text-xs text-gray-900 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 focus:outline-none bg-emerald-50/20 font-medium"
+            />
           </div>
-        )}
 
-        {/* Ações Rápidas (SEMPRE VISÍVEIS) */}
-        <div className="grid grid-cols-2 gap-2 pt-1">
-          <button
-            type="button"
-            onClick={handleEnviarPix}
-            className="inline-flex items-center justify-center gap-1 rounded-lg border border-teal-200 bg-teal-50 px-2 py-1.5 text-[11px] font-bold text-teal-800 hover:bg-teal-100 transition-colors shadow-2xs"
-          >
-            <QrCode className="h-3.5 w-3.5 text-teal-600" />
-            Enviar PIX
-          </button>
+          <div>
+            <label className="text-[11px] font-bold text-gray-700 flex items-center justify-between mb-1">
+              <span>Mensagem de Cobrança:</span>
+              <span className="text-[10px] text-emerald-700 font-medium">
+                {templateAtual?.titulo}
+              </span>
+            </label>
+            <textarea
+              rows={4}
+              value={mensagemEditada}
+              onChange={(e) => setMensagemEditada(e.target.value)}
+              className="w-full rounded-lg border border-gray-300 p-2 text-xs font-sans text-gray-900 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 focus:outline-none leading-relaxed"
+              placeholder="Digite a mensagem para enviar no WhatsApp..."
+            />
+          </div>
 
-          <button
-            type="button"
-            onClick={() => setConfigModalOpen(true)}
-            className="inline-flex items-center justify-center gap-1 rounded-lg border border-gray-200 bg-gray-50 px-2 py-1.5 text-[11px] font-bold text-gray-700 hover:bg-gray-100 transition-colors shadow-2xs"
-          >
-            <Sparkles className="h-3.5 w-3.5 text-gray-500" />
-            Modelos ({templates.length})
-          </button>
-        </div>
+          {/* Ações Rápidas */}
+          <div className="grid grid-cols-2 gap-2 pt-0.5">
+            <button
+              type="button"
+              onClick={handleEnviarPix}
+              className="inline-flex items-center justify-center gap-1 rounded-lg border border-teal-200 bg-teal-50 px-2 py-1.5 text-[11px] font-bold text-teal-800 hover:bg-teal-100 transition-colors shadow-2xs"
+            >
+              <QrCode className="h-3.5 w-3.5 text-teal-600" />
+              Enviar PIX
+            </button>
 
-        {/* Editor e Botão de Envio no WhatsApp (SEMPRE VISÍVEIS) */}
-        <div className="space-y-1.5 pt-1">
-          <textarea
-            rows={4}
-            value={mensagemEditada}
-            onChange={(e) => setMensagemEditada(e.target.value)}
-            className="w-full rounded-lg border border-gray-300 p-2 text-xs font-sans text-gray-900 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 focus:outline-none leading-relaxed"
-            placeholder="Digite a mensagem para enviar no WhatsApp..."
-          />
+            <button
+              type="button"
+              onClick={() => setConfigModalOpen(true)}
+              className="inline-flex items-center justify-center gap-1 rounded-lg border border-gray-200 bg-gray-50 px-2 py-1.5 text-[11px] font-bold text-gray-700 hover:bg-gray-100 transition-colors shadow-2xs"
+            >
+              <Sparkles className="h-3.5 w-3.5 text-gray-500" />
+              Modelos ({templates.length})
+            </button>
+          </div>
 
           <button
             type="button"
