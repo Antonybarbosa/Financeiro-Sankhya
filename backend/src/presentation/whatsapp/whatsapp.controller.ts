@@ -4,8 +4,6 @@ import {
   Post,
   Body,
   Query,
-  BadRequestException,
-  NotFoundException,
 } from '@nestjs/common';
 import { ClienteUseCases } from '../../application/use-cases/cliente.use-cases';
 import { TituloUseCases } from '../../application/use-cases/titulo.use-cases';
@@ -31,12 +29,12 @@ export class WhatsAppController {
   @Get('cliente-por-telefone')
   async buscarClientePorTelefone(@Query('telefone') telefone: string) {
     if (!telefone) {
-      throw new BadRequestException('Parâmetro "telefone" é obrigatório.');
+      return { encontrado: false, cliente: null };
     }
 
     const apenasNumeros = telefone.replace(/\D/g, '');
     if (apenasNumeros.length < 8) {
-      throw new BadRequestException('Telefone inválido ou muito curto.');
+      return { encontrado: false, cliente: null };
     }
 
     const ultimosDigitos = apenasNumeros.slice(-8);
@@ -91,6 +89,10 @@ export class WhatsAppController {
   @Public()
   @Get('titulos-por-telefone')
   async buscarTitulosPorTelefone(@Query('telefone') telefone: string) {
+    if (!telefone) {
+      return { cliente: null, titulos: [], totalEmAberto: 0 };
+    }
+
     const resCliente = await this.buscarClientePorTelefone(telefone);
     if (!resCliente.encontrado || !resCliente.cliente) {
       return { cliente: null, titulos: [], totalEmAberto: 0 };
@@ -120,14 +122,19 @@ export class WhatsAppController {
   async registrarHistorico(
     @Body()
     body: {
-      parceiroId: number;
+      parceiroId?: number;
       mensagem: string;
       nuFin?: number;
       proximaChamada?: string;
     },
   ) {
+    if (!body || !body.mensagem) {
+      return { success: false, message: 'Mensagem não informada' };
+    }
+
+    // Se for mensagem para contato avulso sem cadastro de parceiro no Sankhya
     if (!body.parceiroId) {
-      throw new BadRequestException('parceiroId é obrigatório');
+      return { success: true, avulso: true };
     }
 
     const proximaData = body.proximaChamada ? new Date(body.proximaChamada) : null;
