@@ -193,7 +193,7 @@ export function SankhyaCustomerContextPanel({
     setSelectedIds(next);
   };
 
-  // Abrir conversa do telefone digitado no WhatsApp Web
+  // Buscar e abrir conversa do telefone digitado no WhatsApp Web (apenas pesquisa, sem enviar)
   const handleAbrirConversaTelefone = () => {
     const cleanPhone = telefoneDigitado.replace(/\D/g, '');
     if (cleanPhone.length < 8) {
@@ -203,7 +203,7 @@ export function SankhyaCustomerContextPanel({
 
     whatsappBridge.navigateToPhone(cleanPhone, '', iframeRef);
     openWhatsAppWithContact(cleanPhone);
-    toast.success('Abrindo Conversa', `Carregando chat com ${telefoneDigitado} no WhatsApp...`);
+    toast.success('Pesquisando Contato', `Buscando conversa com ${telefoneDigitado} no WhatsApp...`);
   };
 
   const handleEnviarMensagem = async () => {
@@ -421,10 +421,10 @@ export function SankhyaCustomerContextPanel({
                 onClick={handleAbrirConversaTelefone}
                 disabled={telefoneDigitado.replace(/\D/g, '').length < 8}
                 className="rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 px-2.5 py-1.5 text-xs font-bold transition-colors disabled:opacity-40 flex items-center gap-1 shrink-0 shadow-2xs"
-                title="Abrir esta conversa no WhatsApp"
+                title="Pesquisar este número no WhatsApp"
               >
-                <ArrowRight className="h-3.5 w-3.5" />
-                Abrir
+                <Search className="h-3.5 w-3.5" />
+                Buscar
               </button>
             </div>
           </div>
