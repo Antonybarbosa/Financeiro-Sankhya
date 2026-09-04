@@ -103,3 +103,10 @@ Content-Type: application/json
 2. **Consulta de Dados**: O sistema consulta a API `/api/whatsapp/titulos-por-telefone` e atualiza o **Painel Financeiro Sankhya**.
 3. **Interpolação do Modelo**: A mensagem de cobrança é gerada automaticamente substituindo as variáveis (`{nome_parceiro}`, `{valor_total}`, `{lista_titulos_detalhada}`).
 4. **Inserção & Envio**: O operador clica em **"Inserir & Enviar no WhatsApp"**. O `whatsappBridge.ts` envia o evento `SANKHYA_SEND_TEXT` para o WhatsApp Web, inserindo o texto formatado no campo de mensagem do chat e efetuando o disparo, enquanto grava o histórico no Sankhya.
+
+---
+
+## 📱 7. Extração Avançada de Telefone e Resiliência
+
+Para detalhes sobre como a extensão extrai o número real de contatos salvos por nome através da gaveta lateral (XPath), Webpack Store e React Fiber, consulte:
+📄 **[docs/EXTRACAO_TELEFONE_WHATSAPP.md](docs/EXTRACAO_TELEFONE_WHATSAPP.md)**.

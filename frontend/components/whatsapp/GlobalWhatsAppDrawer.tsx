@@ -43,36 +43,29 @@ export function GlobalWhatsAppDrawer() {
   // Escutar eventos de mudança de chat vindos da extensão Chrome
   useEffect(() => {
     const unsubscribe = whatsappBridge.subscribeChatChange((info) => {
-      if (info.phoneOrName) {
+      const incomingRaw = (info.phone || info.phoneOrName || '').trim();
+      const infoDigits = incomingRaw.replace(/\D/g, '');
+
+      // Só aceita se houver pelo menos 8 dígitos de telefone (ignora nomes puros)
+      if (infoDigits.length >= 8) {
+        const cleanPhone =
+          infoDigits.startsWith('55') && (infoDigits.length === 12 || infoDigits.length === 13)
+            ? infoDigits.slice(2)
+            : infoDigits;
+
         const state = useWhatsAppStore.getState();
-        const incoming = (info.phoneOrName || '').trim();
         const currentActive = (state.activePhoneOrName || '').trim();
-
-        // 1. Se for exatamente o mesmo identificador/texto, ignora
-        if (incoming === currentActive) {
-          return;
-        }
-
-        const infoDigits = incoming.replace(/\D/g, '');
         const currentDigits = currentActive.replace(/\D/g, '');
 
-        // 2. Se ambos tiverem dígitos e forem iguais (com ou sem 55/DDD), ignora
-        const isSameDigits =
-          infoDigits.length >= 8 &&
-          currentDigits.length >= 8 &&
-          (infoDigits === currentDigits || currentDigits.endsWith(infoDigits) || infoDigits.endsWith(currentDigits));
-
-        // 3. Se for o mesmo nome de parceiro ativo, ignora
-        const isSameName =
-          state.activePartnerName &&
-          incoming.toLowerCase().includes(state.activePartnerName.toLowerCase());
-
-        if (isSameDigits || isSameName) {
+        // 1. Se for exatamente o mesmo número, ignora
+        if (cleanPhone === currentActive || (currentDigits.length >= 8 && currentDigits.endsWith(cleanPhone.slice(-8)))) {
           return;
         }
 
-        // Só atualiza se for uma conversa verdadeiramente diferente
-        openWhatsAppWithContact(incoming);
+        // Só atualiza se for uma conversa com telefone validado
+        openWhatsAppWithContact(cleanPhone, undefined, info.name);
+      } else if (info.name && info.name.trim()) {
+        openWhatsAppWithContact(info.name.trim(), undefined, info.name.trim());
       }
     });
 

@@ -103,6 +103,7 @@ export function SankhyaCustomerContextPanel({
   const [boletoTituloId, setBoletoTituloId] = useState<number | null>(null);
   const [danfeNumNota, setDanfeNumNota] = useState<number | null>(null);
   const [renegociarPartner, setRenegociarPartner] = useState<{ id: number; nome: string } | null>(null);
+  const [debugBusca, setDebugBusca] = useState<any>(null);
 
   // Lista da Fila de Cobrança bruta
   const rawFilaItems = useMemo(() => atendimentosData?.items || [], [atendimentosData]);
@@ -196,13 +197,18 @@ export function SankhyaCustomerContextPanel({
           itemTelDigits = itemTelDigits.slice(2);
         }
 
-        // Correspondência estrita por dígitos de telefone (sem comparar nome da agenda)
+        // 1. Correspondência estrita por dígitos de telefone
         const matchTel =
           incomingDigits.length >= 8 &&
           itemTelDigits.length >= 8 &&
           (itemTelDigits.endsWith(incomingDigits.slice(-8)) || incomingDigits.endsWith(itemTelDigits.slice(-8)));
 
-        return matchTel;
+        // 2. Correspondência por nome caso o contato esteja na fila de cobrança de hoje
+        const matchNome =
+          incoming.length >= 4 &&
+          (itemNome === incoming || itemNome.startsWith(incoming) || incoming.startsWith(itemNome));
+
+        return matchTel || matchNome;
       });
 
       if (matchFila && matchFila.parceiroId && matchFila.parceiroId !== activePartnerId) {
@@ -239,11 +245,23 @@ export function SankhyaCustomerContextPanel({
     lastFetchedKeyRef.current = currentKey;
 
     const fetchClienteData = async () => {
+      const phoneDigits = (activePhoneOrName || '').replace(/\D/g, '');
+      const validPhone = phoneDigits.length >= 8 ? activePhoneOrName : undefined;
+
+      // Se não tiver parceiroId E não for um telefone com pelo menos 8 dígitos, não dispara busca no Sankhya
+      if (!activePartnerId && !validPhone) {
+        setCliente(null);
+        setClientesEncontrados([]);
+        setTitulos([]);
+        setTotalEmAberto(0);
+        return;
+      }
+
       setLoading(true);
       try {
         const resp = await api.get('/api/whatsapp/titulos-por-telefone', {
           params: {
-            telefone: activePhoneOrName || undefined,
+            telefone: validPhone,
             parceiroId: activePartnerId || undefined,
           },
         });
@@ -254,6 +272,7 @@ export function SankhyaCustomerContextPanel({
           const listTitulos: TituloSankhya[] = resp.data.titulos || [];
           setTitulos(listTitulos);
           setTotalEmAberto(resp.data.totalEmAberto || 0);
+          setDebugBusca(resp.data);
 
           const ids = new Set<number>(listTitulos.map((t) => t.id));
           setSelectedIds(ids);
@@ -262,6 +281,7 @@ export function SankhyaCustomerContextPanel({
           setClientesEncontrados([]);
           setTitulos([]);
           setTotalEmAberto(0);
+          setDebugBusca(resp.data);
         }
       } catch (err) {
         console.error('Erro ao buscar dados do cliente no Sankhya:', err);
@@ -657,9 +677,9 @@ export function SankhyaCustomerContextPanel({
                 </div>
 
                 {activePhoneOrName && (
-                  <div className="bg-white/90 border border-amber-300 rounded-lg p-2.5 mx-auto max-w-xs text-left shadow-2xs">
+                  <div className="bg-white/90 border border-amber-300 rounded-lg p-2.5 mx-auto max-w-xs text-left shadow-2xs space-y-2">
                     <div className="flex items-center justify-between text-[10px] text-amber-800 font-bold mb-1">
-                      <span>Termo detectado no WhatsApp:</span>
+                      <span>Termo recebido pelo Frontend:</span>
                       <span className="font-mono bg-amber-100 px-1.5 py-0.5 rounded text-amber-900">
                         {activePhoneOrName.replace(/\D/g, '').length >= 8 ? 'Telefone' : 'Nome / Contato'}
                       </span>
@@ -667,6 +687,27 @@ export function SankhyaCustomerContextPanel({
                     <div className="font-mono text-xs font-black text-gray-900 break-all select-all bg-gray-50 border border-gray-200 rounded p-1.5">
                       {activePhoneOrName}
                     </div>
+
+                    {debugBusca && (
+                      <div className="border-t border-amber-200 pt-2 space-y-1.5 text-[10px]">
+                        <div className="font-bold text-amber-950 flex items-center justify-between">
+                          <span>Diagnóstico Backend:</span>
+                          <span className="text-gray-500 font-mono">
+                            Dígitos: {debugBusca.debugBuscaTelefone?.ultimosDigitos || 'Nenhum'}
+                          </span>
+                        </div>
+                        {debugBusca.debugBuscaTelefone?.sqlExecutado && (
+                          <details className="mt-1">
+                            <summary className="cursor-pointer font-semibold text-amber-800 hover:text-amber-950">
+                              Ver SQL executado no Sankhya
+                            </summary>
+                            <pre className="mt-1 p-1.5 bg-gray-900 text-gray-100 rounded text-[9px] overflow-x-auto whitespace-pre-wrap font-mono">
+                              {debugBusca.debugBuscaTelefone.sqlExecutado}
+                            </pre>
+                          </details>
+                        )}
+                      </div>
+                    )}
                   </div>
                 )}
 

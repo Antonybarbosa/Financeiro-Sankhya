@@ -85,9 +85,14 @@ class WhatsAppBridge {
         useWhatsAppTestStore.getState().setLastHeartbeat(new Date().toLocaleTimeString('pt-BR'));
       } else if (evt === 'chat_changed') {
         const chatData = data.data || {};
-        const phoneOrName = chatData.phoneOrName || chatData.name || chatData.phone || '';
-        useWhatsAppTestStore.getState().setActiveChat(phoneOrName);
-        this.notifyListeners({ phoneOrName, name: chatData.name, phone: chatData.phone });
+        const phone = chatData.phone || (chatData.phoneOrName && chatData.phoneOrName.replace(/\D/g, '').length >= 8 ? chatData.phoneOrName : null);
+        const name = chatData.name || (chatData.phoneOrName && !phone ? chatData.phoneOrName : '');
+        const phoneOrName = phone || name || '';
+        
+        if (phoneOrName) {
+          useWhatsAppTestStore.getState().setActiveChat(phoneOrName);
+        }
+        this.notifyListeners({ phoneOrName, name, phone });
       }
     }
 
@@ -97,9 +102,12 @@ class WhatsAppBridge {
       useWhatsAppTestStore.getState().setExtensionReady(true);
       useWhatsAppTestStore.getState().setLastHeartbeat(new Date().toLocaleTimeString('pt-BR'));
     } else if (data.type === 'SANKHYA_CHAT_CHANGED' || data.type === 'SANKHYA_CURRENT_CHAT_RESPONSE') {
-      const phoneOrName = data.phoneOrName || '';
-      useWhatsAppTestStore.getState().setActiveChat(phoneOrName);
-      this.notifyListeners({ phoneOrName });
+      const rawDigits = (data.phoneOrName || '').replace(/\D/g, '');
+      const validPhone = rawDigits.length >= 8 ? data.phoneOrName : '';
+      if (validPhone) {
+        useWhatsAppTestStore.getState().setActiveChat(validPhone);
+      }
+      this.notifyListeners({ phoneOrName: validPhone });
     }
   }
 

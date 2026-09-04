@@ -36,7 +36,8 @@
   // 2. COMPORTAMENTO NO WHATSAPP WEB (Dentro do Iframe)
   // ========================================================
   if (isWhatsApp) {
-    let lastChat = "";
+    let lastChatPhone = "";
+    let lastName = "";
 
     function notifyReady() {
       try {
@@ -47,27 +48,49 @@
       } catch (e) {}
     }
 
-    // Heartbeat e monitor de troca de chat
+    function checkAndNotifyChat() {
+      if (!window.WhatsAppDOM) return;
+      const current = window.WhatsAppDOM.getActiveChatInfo();
+      const currentPhone = current.phone || "";
+      const currentName = current.name || "";
+
+      // Se mudou o telefone ou mudou o nome do chat ativo
+      if ((currentPhone && currentPhone !== lastChatPhone) || (currentName && currentName !== lastName)) {
+        if (currentPhone) lastChatPhone = currentPhone;
+        if (currentName) lastName = currentName;
+
+        const evtPayload = {
+          type: "WHATSAPP_EVENT",
+          event: "chat_changed",
+          timestamp: Date.now(),
+          data: {
+            phoneOrName: currentPhone || currentName || null,
+            phone: currentPhone || null,
+            name: currentName || "",
+            hasPhone: !!currentPhone,
+          },
+        };
+        console.log("[WhatsApp Skill] Disparando evento chat_changed:", evtPayload.data);
+        try {
+          window.top.postMessage(evtPayload, "*");
+          window.parent.postMessage(evtPayload, "*");
+        } catch (e) {}
+      }
+    }
+
+    // Escuta cliques do usuário na lista de chats ou na tela para extração imediata
+    document.addEventListener("click", () => {
+      setTimeout(checkAndNotifyChat, 100);
+      setTimeout(checkAndNotifyChat, 400);
+      setTimeout(checkAndNotifyChat, 800);
+      setTimeout(checkAndNotifyChat, 1400);
+    }, true);
+
+    // Heartbeat e monitor contínuo a cada 800ms
     setInterval(() => {
       notifyReady();
-      if (window.WhatsAppDOM) {
-        const current = window.WhatsAppDOM.getActiveChatInfo();
-        const identifier = current.phone || current.name;
-        if (identifier && identifier !== lastChat) {
-          lastChat = identifier;
-          try {
-            const evtPayload = {
-              type: "WHATSAPP_EVENT",
-              event: "chat_changed",
-              timestamp: Date.now(),
-              data: { phoneOrName: identifier, name: current.name, phone: current.phone },
-            };
-            window.top.postMessage(evtPayload, "*");
-            window.parent.postMessage(evtPayload, "*");
-          } catch (e) {}
-        }
-      }
-    }, 1200);
+      checkAndNotifyChat();
+    }, 800);
 
     // Manipulador central de comandos semânticos
     async function handleCommand(command) {

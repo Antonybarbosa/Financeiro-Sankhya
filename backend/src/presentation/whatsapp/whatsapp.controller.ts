@@ -41,9 +41,12 @@ export class WhatsAppController {
     const ultimosDigitos = temTelefoneValido ? apenasNumeros.slice(-8) : '';
     const nomeTermo = termo.replace(/'/g, "''").toUpperCase();
 
+    console.log(`[WhatsApp Backend] Buscando cliente por telefone. Termo: "${termo}", Apenas números: "${apenasNumeros}", Últimos 8 dígitos: "${ultimosDigitos}"`);
+
     // Busca estritamente por dígitos de telefone ou celular
     if (!temTelefoneValido) {
-      return { encontrado: false, clientes: [], cliente: null };
+      console.warn(`[WhatsApp Backend] Telefone inválido (< 8 dígitos): "${termo}"`);
+      return { encontrado: false, clientes: [], cliente: null, termoBuscado: termo, ultimosDigitos: '' };
     }
 
     const condicoes: string[] = [
@@ -72,9 +75,11 @@ export class WhatsAppController {
     `;
 
     try {
+      console.log(`[WhatsApp Backend] Executando SQL no Sankhya:\n${sql}`);
       const rows = await this.sankhyaGateway.executeQuery(sql);
+      console.log(`[WhatsApp Backend] Linhas retornadas do Sankhya: ${rows ? rows.length : 0}`);
       if (!rows || rows.length === 0) {
-        return { encontrado: false, clientes: [], cliente: null };
+        return { encontrado: false, clientes: [], cliente: null, termoBuscado: termo, ultimosDigitos, sqlExecutado: sql };
       }
 
       const clientes = rows.map((r: any) => ({
@@ -94,9 +99,12 @@ export class WhatsAppController {
         total: clientes.length,
         cliente: clientes[0], // Primeiro/principal como atalho
         clientes,
+        termoBuscado: termo,
+        ultimosDigitos,
       };
     } catch (error: any) {
-      return { encontrado: false, clientes: [], cliente: null, erro: error?.message };
+      console.error(`[WhatsApp Backend] Erro na consulta Sankhya:`, error);
+      return { encontrado: false, clientes: [], cliente: null, erro: error?.message, termoBuscado: termo, ultimosDigitos };
     }
   }
 
@@ -109,6 +117,7 @@ export class WhatsAppController {
     @Query('telefone') telefone?: string,
     @Query('parceiroId') parceiroId?: string,
   ) {
+    console.log(`[WhatsApp Backend] GET titulos-por-telefone chamado. Telefone: "${telefone}", ParceiroId: "${parceiroId}"`);
     let clientesEncontrados: any[] = [];
     let clientePrincipal: any = null;
 
@@ -137,8 +146,10 @@ export class WhatsAppController {
       }
     }
 
+    let debugBuscaTelefone: any = null;
     if (!clientePrincipal && telefone) {
       const resBusca = await this.buscarClientePorTelefone(telefone);
+      debugBuscaTelefone = resBusca;
       if (resBusca.encontrado && resBusca.clientes && resBusca.clientes.length > 0) {
         clientesEncontrados = resBusca.clientes;
         clientePrincipal = resBusca.clientes[0];
@@ -146,7 +157,14 @@ export class WhatsAppController {
     }
 
     if (!clientePrincipal) {
-      return { cliente: null, clientes: [], titulos: [], totalEmAberto: 0 };
+      return {
+        cliente: null,
+        clientes: [],
+        titulos: [],
+        totalEmAberto: 0,
+        buscaParams: { telefone, parceiroId },
+        debugBuscaTelefone,
+      };
     }
 
     const codParc = clientePrincipal.codParc;
@@ -163,6 +181,8 @@ export class WhatsAppController {
       clientes: clientesEncontrados,
       titulos: titulosAbertos,
       totalEmAberto,
+      buscaParams: { telefone, parceiroId },
+      debugBuscaTelefone,
     };
   }
 

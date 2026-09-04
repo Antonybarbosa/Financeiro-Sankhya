@@ -35,48 +35,30 @@ export function WhatsAppEmbeddedTab() {
   // Escutar eventos de mudança de chat vindos da extensão Chrome
   useEffect(() => {
     const unsubscribe = whatsappBridge.subscribeChatChange((info) => {
-      if (info.phoneOrName) {
-        const state = useWhatsAppStore.getState();
-        const incoming = (info.phoneOrName || '').trim();
-        const currentActive = (activePhoneOrName || state.activePhoneOrName || '').trim();
+      const phoneRaw = (info.phone || info.phoneOrName || '').trim();
+      const phoneDigits = phoneRaw.replace(/\D/g, '');
 
-        // 1. Se for exatamente o mesmo identificador/texto, ignora
-        if (incoming === currentActive) {
-          return;
-        }
-
-        const infoDigits = incoming.replace(/\D/g, '');
-        const currentDigits = currentActive.replace(/\D/g, '');
-
-        // 2. Se ambos tiverem dígitos e forem iguais (com ou sem 55/DDD), ignora
-        const isSameDigits =
-          infoDigits.length >= 8 &&
-          currentDigits.length >= 8 &&
-          (infoDigits === currentDigits || currentDigits.endsWith(infoDigits) || infoDigits.endsWith(currentDigits));
-
-        // 3. Se for o mesmo nome de parceiro ativo, ignora
-        const isSameName =
-          state.activePartnerName &&
-          incoming.toLowerCase().includes(state.activePartnerName.toLowerCase());
-
-        if (isSameDigits || isSameName) {
-          return;
-        }
-
-        // Usar ESTRITAMENTE o número de telefone (nunca o nome da agenda)
-        let incomingClean = '';
-        const phoneDigits = (info.phone || info.phoneOrName || '').replace(/\D/g, '');
+      if (phoneDigits.length >= 8) {
         const cleanPhone =
           phoneDigits.startsWith('55') && (phoneDigits.length === 12 || phoneDigits.length === 13)
             ? phoneDigits.slice(2)
             : phoneDigits;
 
-        if (cleanPhone.length === 10 || cleanPhone.length === 11) {
-          incomingClean = cleanPhone;
+        const state = useWhatsAppStore.getState();
+        const currentActive = (activePhoneOrName || state.activePhoneOrName || '').trim();
+        const currentDigits = currentActive.replace(/\D/g, '');
+
+        // Se for o mesmo telefone já ativo, ignora
+        if (cleanPhone === currentActive || (currentDigits.length >= 8 && currentDigits.endsWith(cleanPhone.slice(-8)))) {
+          return;
         }
 
-        setActivePhoneOrName(incomingClean || null);
-        // Se um contato for detectado, garante que o painel abra para o operador ver os títulos
+        if (cleanPhone.length >= 8 && cleanPhone.length <= 11) {
+          setActivePhoneOrName(cleanPhone);
+          setPanelOpen(true);
+        }
+      } else if (info.name && info.name.trim()) {
+        setActivePhoneOrName(info.name.trim());
         setPanelOpen(true);
       }
     });
