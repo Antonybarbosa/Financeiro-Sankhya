@@ -27,26 +27,42 @@
 
       console.log("[WhatsApp Skill] Localizando campo de busca para:", target);
 
-      // Tentar ativar a barra de pesquisa caso esteja em modo botão
-      try {
-        const searchBtn = document.querySelector("#side button[aria-label*='Pesquisar']") || 
-                          document.querySelector("#side button[aria-label*='Search']") ||
-                          document.querySelector("#side label");
-        if (searchBtn) {
-          window.WhatsAppDOM.simulateHumanClick(searchBtn);
-          await new Promise((r) => setTimeout(r, 250));
+      // Verificar se o input de busca já está presente
+      let searchInput = null;
+      for (const sel of window.WhatsAppSelectors.searchInput) {
+        const el = document.querySelector(sel);
+        if (el) {
+          searchInput = el;
+          break;
         }
-      } catch (e) {}
+      }
 
-      const searchInputRes = await window.WhatsAppWait.waitForElement(window.WhatsAppSelectors.searchInput, 4000);
-      const searchInput = searchInputRes.element;
+      // Se não encontrado, tentar clicar em botões de pesquisa para expandir
+      if (!searchInput) {
+        for (const btnSel of window.WhatsAppSelectors.searchButton) {
+          try {
+            const btn = document.querySelector(btnSel);
+            if (btn) {
+              window.WhatsAppDOM.simulateHumanClick(btn);
+              await new Promise((r) => setTimeout(r, 200));
+              break;
+            }
+          } catch (e) {}
+        }
+      }
+
+      // Aguardar campo de pesquisa ficar visível
+      if (!searchInput) {
+        const searchInputRes = await window.WhatsAppWait.waitForElement(window.WhatsAppSelectors.searchInput, 2500);
+        searchInput = searchInputRes.element;
+      }
 
       // Digitar o número ou nome no campo de busca usando typeSearch especializado
       console.log("[WhatsApp Skill] Digitando busca:", target);
       window.WhatsAppDOM.typeSearch(searchInput, target);
 
       // Aguardar para o WhatsApp Web filtrar os resultados
-      await new Promise((r) => setTimeout(r, 700));
+      await new Promise((r) => setTimeout(r, 600));
 
       // Disparar Enter no campo de busca para selecionar o primeiro resultado
       try {
@@ -62,8 +78,8 @@
 
       // Clicar no primeiro item da lista de resultados caso o Enter não abra direto
       try {
-        await new Promise((r) => setTimeout(r, 400));
-        const resultItemRes = await window.WhatsAppWait.waitForElement(window.WhatsAppSelectors.searchResultItem, 3000);
+        await new Promise((r) => setTimeout(r, 300));
+        const resultItemRes = await window.WhatsAppWait.waitForElement(window.WhatsAppSelectors.searchResultItem, 2000);
         if (resultItemRes && resultItemRes.element) {
           window.WhatsAppDOM.simulateHumanClick(resultItemRes.element);
           console.log("[WhatsApp Skill] Clique no resultado de pesquisa efetuado com sucesso.");
@@ -73,7 +89,7 @@
       }
 
       // Aguardar a área de mensagem do chat carregar
-      await window.WhatsAppWait.waitForElement(window.WhatsAppSelectors.messageInput, 5000);
+      await window.WhatsAppWait.waitForElement(window.WhatsAppSelectors.messageInput, 4000);
       console.log("[WhatsApp Skill] Chat carregado via pesquisa!");
       return { found: true, target };
     },
@@ -112,7 +128,7 @@
           await this.findContact(target);
           opened = true;
         } catch (errSearch) {
-          console.warn("[WhatsApp Skill] Busca nativa falhou, tentando fallback SPA link:", errSearch.message);
+          console.log("[WhatsApp Skill] Busca nativa por UI não concluiu, acionando fallback SPA link:", errSearch.message);
         }
       }
 

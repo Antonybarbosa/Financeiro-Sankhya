@@ -58,11 +58,34 @@
 
       element.focus();
 
+      // Suporte direto para <input> ou <textarea>
+      if (element.tagName === "INPUT" || element.tagName === "TEXTAREA") {
+        try {
+          element.value = "";
+          const nativeInputValueSetter = Object.getOwnPropertyDescriptor(
+            window.HTMLInputElement.prototype,
+            "value"
+          )?.set;
+          if (nativeInputValueSetter) {
+            nativeInputValueSetter.call(element, text);
+          } else {
+            element.value = text;
+          }
+          element.dispatchEvent(new Event("input", { bubbles: true }));
+          element.dispatchEvent(new Event("change", { bubbles: true }));
+          return true;
+        } catch (e) {}
+      }
+
+      // Suporte para contenteditable
+      const targetNode = element.querySelector("p") || element.querySelector("[contenteditable='true']") || element;
+      targetNode.focus();
+
       // Limpar campo de pesquisa
       try {
         const selection = window.getSelection();
         const range = document.createRange();
-        range.selectNodeContents(element);
+        range.selectNodeContents(targetNode);
         selection.removeAllRanges();
         selection.addRange(range);
         document.execCommand("delete", false, null);
@@ -74,18 +97,18 @@
         inserted = document.execCommand("insertText", false, text);
       } catch (e) {}
 
-      if (!inserted || !element.textContent?.trim()) {
+      if (!inserted || !targetNode.textContent?.trim()) {
         try {
-          element.textContent = text;
+          targetNode.textContent = text;
         } catch (e) {}
       }
 
       // Disparar eventos de input que acionam a busca do WhatsApp
       try {
-        element.dispatchEvent(new InputEvent("beforeinput", { bubbles: true, cancelable: true, inputType: "insertText", data: text }));
-        element.dispatchEvent(new InputEvent("input", { bubbles: true, cancelable: true, inputType: "insertText", data: text }));
-        element.dispatchEvent(new Event("input", { bubbles: true }));
-        element.dispatchEvent(new Event("change", { bubbles: true }));
+        targetNode.dispatchEvent(new InputEvent("beforeinput", { bubbles: true, cancelable: true, inputType: "insertText", data: text }));
+        targetNode.dispatchEvent(new InputEvent("input", { bubbles: true, cancelable: true, inputType: "insertText", data: text }));
+        targetNode.dispatchEvent(new Event("input", { bubbles: true }));
+        targetNode.dispatchEvent(new Event("change", { bubbles: true }));
       } catch (e) {}
 
       return true;
