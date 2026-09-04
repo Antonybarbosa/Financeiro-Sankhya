@@ -236,34 +236,49 @@
           } catch (e) {}
         }
 
-        // ESTRATÉGIA 4: Leitura do Título Visível do Cabeçalho
-        const titleSelectors = window.WhatsAppSelectors.activeChatHeaderTitle;
-        for (const sel of titleSelectors) {
-          const elements = document.querySelectorAll(sel);
-          for (const el of elements) {
-            const txt = (el.getAttribute("title") || el.innerText || "").trim();
-            if (
-              txt &&
-              !txt.toLowerCase().includes("mensagens para mim") &&
-              !txt.toLowerCase().includes("online") &&
-              !txt.toLowerCase().includes("visto por último") &&
-              !txt.toLowerCase().includes("digitando") &&
-              !txt.toLowerCase().includes("clique aqui para")
-            ) {
-              if (!titleText) titleText = txt;
+        // ESTRATÉGIA 4: Leitura do Título Visível do Cabeçalho (Nome do Contato ou Número)
+        const isIgnoredText = (txt) => {
+          if (!txt || typeof txt !== "string") return true;
+          const low = txt.toLowerCase().trim();
+          return (
+            low.includes("mensagens para mim") ||
+            low.includes("online") ||
+            low.includes("visto por último") ||
+            low.includes("digitando") ||
+            low.includes("clique aqui para") ||
+            low.includes("clique para mostrar") ||
+            low.includes("dados do contato") ||
+            low.includes("dados do grupo")
+          );
+        };
+
+        // 1. Prioriza o primeiro elemento de texto dentro do botão de cabeçalho do contato
+        const headerBtn = document.querySelector("#main header div[role=\"button\"]");
+        if (headerBtn) {
+          // Busca especificamente pelos spans com título ou texto de nome do contato
+          const titleCandidates = headerBtn.querySelectorAll("h2, span[title], span._ao3e, span[dir=\"auto\"]");
+          for (const el of titleCandidates) {
+            const val = (el.getAttribute("title") || el.innerText || "").trim();
+            if (val && !isIgnoredText(val)) {
+              titleText = val;
               break;
             }
           }
-          if (titleText) break;
         }
 
+        // 2. Fallback geral nos seletores configurados
         if (!titleText) {
-          const headerEl = document.querySelector("#main header div[role=\"button\"]");
-          if (headerEl) {
-            const firstSpan = headerEl.querySelector("span[title]");
-            if (firstSpan) {
-              titleText = firstSpan.getAttribute("title") || firstSpan.innerText || "";
+          const titleSelectors = window.WhatsAppSelectors.activeChatHeaderTitle;
+          for (const sel of titleSelectors) {
+            const elements = document.querySelectorAll(sel);
+            for (const el of elements) {
+              const val = (el.getAttribute("title") || el.innerText || "").trim();
+              if (val && !isIgnoredText(val)) {
+                titleText = val;
+                break;
+              }
             }
+            if (titleText) break;
           }
         }
 

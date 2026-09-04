@@ -51,13 +51,12 @@
       '#side span[title]',
     ],
     activeChatHeaderTitle: [
+      '#main header div[role="button"] h2 span[title]',
       '#main header div[role="button"] span[title]:first-child',
       '#main header div[role="button"] span._ao3e',
-      '#main header div[role="button"] h2 span[title]',
       '#main header div[role="button"] h2',
-      '#main header span[title]:not([title=""]):not([title*="clique aqui"]):not([title*="Mensagens"])',
-      '#main header div[role="button"] span[title]',
-      '#main header span[title]',
+      '#main header div[role="button"] span[dir="auto"]',
+      '#main header span[title]:not([title=""]):not([title*="clique"]):not([title*="Mensagens"]):not([title*="dados"])',
     ],
     activeChatHeaderAvatar: [
       '#main header img[src*="whatsapp.net"]',
