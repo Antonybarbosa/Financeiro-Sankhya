@@ -179,29 +179,16 @@ export function SankhyaCustomerContextPanel({
     }
   };
 
-  // Se o operador clicar manualmente em uma conversa NOVA/DIFERENTE no WhatsApp Web
+  // Se o operador clicar em uma conversa ou abrir contato no WhatsApp Web
   useEffect(() => {
     if (!activePhoneOrName) return;
 
     const incoming = activePhoneOrName.trim();
     let incomingDigits = incoming.replace(/\D/g, '');
-    if (incomingDigits.length < 8) return; // Ignora se não for número de telefone válido (mínimo 8 dígitos)
+    if (incomingDigits.length < 8) return;
 
-    if (incomingDigits.startsWith('55') && (incomingDigits.length === 12 || incomingDigits.length === 13)) {
-      incomingDigits = incomingDigits.slice(2);
-    }
-
-    // No carregamento inicial da página, registra o contato sem forçar a troca da aba Fila para Atendimento
-    if (isInitialMountRef.current) {
-      isInitialMountRef.current = false;
-      lastSwitchedContactRef.current = activePhoneOrName;
-      return;
-    }
-
-    if (activePhoneOrName !== lastSwitchedContactRef.current) {
-      lastSwitchedContactRef.current = activePhoneOrName;
-      setActiveTab('atendimento');
-    }
+    // Sempre que um telefone ativo for selecionado ou clicado, vai para a aba de Atendimento
+    setActiveTab('atendimento');
   }, [activePhoneOrName]);
 
   // Busca cliente e títulos por parceiroId ou telefone (com proteção contra busca duplicada e race condition)
@@ -220,7 +207,7 @@ export function SankhyaCustomerContextPanel({
   };
 
   useEffect(() => {
-    // Se não tiver chave selecionada, não dispara busca e não altera o cliente atual
+    // Se não tiver chave selecionada, não dispara busca
     if (!activePhoneOrName && !activePartnerId) {
       return;
     }
@@ -237,19 +224,8 @@ export function SankhyaCustomerContextPanel({
     if (loadedPartnerIdRef.current && activePartnerId && loadedPartnerIdRef.current === activePartnerId) {
       return;
     }
-    if (cliente) {
-      if (activePartnerId && cliente.codParc === activePartnerId) {
-        return;
-      }
-      if (validPhone) {
-        const last8Loaded = (loadedPhoneRef.current || cleanPhoneDigits(cliente.telefone)).slice(-8);
-        const last8Search = validPhone.slice(-8);
-        if (last8Loaded && last8Search && last8Loaded === last8Search) {
-          return;
-        }
-      }
-    } else if (loadedPhoneRef.current && validPhone) {
-      const last8Loaded = loadedPhoneRef.current.slice(-8);
+    if (cliente && validPhone && !activePartnerId) {
+      const last8Loaded = (loadedPhoneRef.current || cleanPhoneDigits(cliente.telefone)).slice(-8);
       const last8Search = validPhone.slice(-8);
       if (last8Loaded && last8Search && last8Loaded === last8Search) {
         return;
@@ -258,8 +234,8 @@ export function SankhyaCustomerContextPanel({
 
     const currentKey = `${activePartnerId || ''}_${validPhone || ''}`;
 
-    // Se já foi buscado exatamente com esta mesma chave, evita disparar novamente
-    if (lastFetchedKeyRef.current === currentKey) {
+    // Se já foi buscado com esta exata chave e está carregando ou já concluiu, evita disparar novamente
+    if (lastFetchedKeyRef.current === currentKey && loading) {
       return;
     }
 

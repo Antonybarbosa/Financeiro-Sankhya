@@ -353,19 +353,41 @@
           return false;
         };
 
-        // ESTRATÉGIA 0: Seção de Dados do Contato / Gaveta aberta (limpeza de caracteres Unicode)
+        // ESTRATÉGIA 0: Seção de Dados do Contato / Gaveta aberta / Painel Lateral Direito
         try {
-          const sectionSpans = document.querySelectorAll("#app section span, #app section div, [role='region'] span, [role='region'] div, div[tabindex='-1'] span");
-          for (const sp of sectionSpans) {
-            const rawText = (sp.innerText || sp.textContent || "").trim();
-            if (!rawText) continue;
-            // Remove pontuações e caracteres invisíveis do WhatsApp Web
+          const drawerCandidates = document.querySelectorAll(
+            "#app [data-testid*='drawer'] span, #app [data-testid*='drawer'] div, " +
+            "#app [data-testid*='contact-info'] span, #app [data-testid*='contact-info'] div, " +
+            "#app [data-testid*='chat-info'] span, #app [data-testid*='chat-info'] div, " +
+            "#app section span, #app section div, [role='region'] span, [role='region'] div, " +
+            "div[tabindex='-1'] span, div[tabindex='-1'] div, aside span, aside div"
+          );
+
+          for (const el of drawerCandidates) {
+            const rawText = (el.innerText || el.textContent || "").trim();
+            if (!rawText || rawText.length < 8 || rawText.length > 200) continue;
+
+            // Busca por padrão de telefone brasileiro no texto
+            const matches = rawText.match(/(?:[+]?55\s*)?(?:\(?\d{2}\)?\s*)?(?:9\s*)?\d{4}[-\s]*\d{4}/g);
+            if (matches) {
+              for (const m of matches) {
+                const cleaned = this.cleanPhoneNumber(m);
+                if (cleaned && !isSelfOrInvalid(cleaned)) {
+                  phone = cleaned;
+                  console.log("[WhatsApp Skill] Telefone extraído da gaveta/seção de contato:", phone, "texto:", m);
+                  break;
+                }
+              }
+            }
+            if (phone) break;
+
+            // Fallback por dígitos puros
             const onlyDigits = rawText.replace(/\D/g, "");
             if (onlyDigits.length >= 10 && onlyDigits.length <= 13) {
               const cleaned = this.cleanPhoneNumber(onlyDigits);
               if (cleaned && !isSelfOrInvalid(cleaned)) {
                 phone = cleaned;
-                console.log("[WhatsApp Skill] Telefone extraído da seção de contato:", phone, "texto:", rawText);
+                console.log("[WhatsApp Skill] Telefone extraído por dígitos na gaveta:", phone);
                 break;
               }
             }

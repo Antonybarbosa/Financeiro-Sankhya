@@ -48,7 +48,7 @@
       } catch (e) {}
     }
 
-    function checkAndNotifyChat() {
+    function checkAndNotifyChat(force = false) {
       if (!window.WhatsAppDOM) return;
       const current = window.WhatsAppDOM.getActiveChatInfo();
       const currentPhone = current.phone || "";
@@ -67,8 +67,8 @@
         const lastDigits = (lastChatPhone || "").replace(/\D/g, "").slice(-8);
         const currentDigits = currentPhone.replace(/\D/g, "").slice(-8);
 
-        // Se for o mesmo contato já notificado (mesmos 8 dígitos finais), ignora
-        if (lastDigits && currentDigits && lastDigits === currentDigits) {
+        // Se não for forçado e for o mesmo contato já notificado (mesmos 8 dígitos finais), ignora
+        if (!force && lastDigits && currentDigits && lastDigits === currentDigits) {
           return;
         }
 
@@ -94,7 +94,7 @@
       }
     }
 
-    // Escuta cliques do usuário na lista de chats ou na tela para extração imediata
+    // Escuta cliques do usuário na lista de chats ou no cabeçalho do contato para extração imediata
     document.addEventListener("click", (e) => {
       // Se o clique for no botão de fechar a gaveta (X ou Fechar), não dispara verificação
       const target = e.target;
@@ -113,15 +113,16 @@
         return;
       }
 
-      setTimeout(checkAndNotifyChat, 150);
-      setTimeout(checkAndNotifyChat, 600);
-      setTimeout(checkAndNotifyChat, 1200);
+      setTimeout(() => checkAndNotifyChat(true), 150);
+      setTimeout(() => checkAndNotifyChat(true), 500);
+      setTimeout(() => checkAndNotifyChat(true), 1000);
+      setTimeout(() => checkAndNotifyChat(true), 1800);
     }, true);
 
     // Heartbeat e monitoramento de novo contato (só dispara se houver novo telefone diferente)
     setInterval(() => {
       notifyReady();
-      checkAndNotifyChat();
+      checkAndNotifyChat(false);
     }, 1000);
 
     // Manipulador central de comandos semânticos
