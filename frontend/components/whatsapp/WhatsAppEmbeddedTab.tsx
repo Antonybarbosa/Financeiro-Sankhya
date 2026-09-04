@@ -35,35 +35,27 @@ export function WhatsAppEmbeddedTab() {
   // Escutar eventos de mudança de chat vindos da extensão Chrome
   useEffect(() => {
     const unsubscribe = whatsappBridge.subscribeChatChange((info) => {
-      const phoneRaw = (info.phone || info.phoneOrName || '').trim();
+      const phoneRaw = (info.phone || '').trim();
       const phoneDigits = phoneRaw.replace(/\D/g, '');
 
+      // Só processa se houver telefone real extraído (mínimo 8 dígitos)
       if (phoneDigits.length >= 8) {
         const cleanPhone =
           phoneDigits.startsWith('55') && (phoneDigits.length === 12 || phoneDigits.length === 13)
             ? phoneDigits.slice(2)
             : phoneDigits;
 
-        const state = useWhatsAppStore.getState();
-        const currentActive = (activePhoneOrName || state.activePhoneOrName || '').trim();
-        const currentDigits = currentActive.replace(/\D/g, '');
-
-        // Se for o mesmo telefone já ativo, ignora
-        if (cleanPhone === currentActive || (currentDigits.length >= 8 && currentDigits.endsWith(cleanPhone.slice(-8)))) {
-          return;
-        }
-
         if (cleanPhone.length >= 8 && cleanPhone.length <= 11) {
-          // Atualiza a store global limpando o parceiroId anterior para buscar pelo novo telefone
+          const currentActive = (activePhoneOrName || '').trim();
+          const currentDigits = currentActive.replace(/\D/g, '');
+
+          if (cleanPhone === currentActive || (currentDigits.length >= 8 && currentDigits.endsWith(cleanPhone.slice(-8)))) {
+            return;
+          }
+
+          // Atualiza a store global limpando o parceiroId anterior para buscar exclusivamente pelo novo telefone
           useWhatsAppStore.getState().openWhatsAppWithContact(cleanPhone, undefined, info.name);
           setActivePhoneOrName(cleanPhone);
-          setPanelOpen(true);
-        }
-      } else if (info.name && info.name.trim()) {
-        const currentActive = (activePhoneOrName || '').trim();
-        if (info.name.trim() !== currentActive) {
-          useWhatsAppStore.getState().openWhatsAppWithContact(info.name.trim(), undefined, info.name.trim());
-          setActivePhoneOrName(info.name.trim());
           setPanelOpen(true);
         }
       }

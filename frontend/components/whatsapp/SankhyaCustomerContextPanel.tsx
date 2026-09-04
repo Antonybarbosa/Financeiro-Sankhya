@@ -177,38 +177,34 @@ export function SankhyaCustomerContextPanel({
     }
   };
 
-  // Se o operador clicar manualmente em uma conversa NOVA/DIFERENTE no WhatsApp Web, abre o atendimento
+  // Se o operador clicar manualmente em uma conversa NOVA/DIFERENTE no WhatsApp Web
   useEffect(() => {
-    if (activePhoneOrName && activePhoneOrName !== lastSwitchedContactRef.current) {
+    if (!activePhoneOrName) return;
+
+    const incoming = activePhoneOrName.trim();
+    let incomingDigits = incoming.replace(/\D/g, '');
+    if (incomingDigits.length < 8) return; // Ignora se não for número de telefone válido (mínimo 8 dígitos)
+
+    if (incomingDigits.startsWith('55') && (incomingDigits.length === 12 || incomingDigits.length === 13)) {
+      incomingDigits = incomingDigits.slice(2);
+    }
+
+    if (activePhoneOrName !== lastSwitchedContactRef.current) {
       lastSwitchedContactRef.current = activePhoneOrName;
       setActiveTab('atendimento');
 
-      // Tenta correspondência imediata com itens da fila em memória (com ou sem +55)
-      const incoming = activePhoneOrName.trim().toLowerCase();
-      let incomingDigits = incoming.replace(/\D/g, '');
-      if (incomingDigits.startsWith('55') && (incomingDigits.length === 12 || incomingDigits.length === 13)) {
-        incomingDigits = incomingDigits.slice(2);
-      }
-
+      // Se o telefone coincidir estritamente com algum item da fila de cobrança, vincula o parceiroId
       const matchFila = rawFilaItems.find((item) => {
-        const itemNome = (item.parceiroNome || '').toLowerCase();
         let itemTelDigits = (item.telefone || '').replace(/\D/g, '');
         if (itemTelDigits.startsWith('55') && (itemTelDigits.length === 12 || itemTelDigits.length === 13)) {
           itemTelDigits = itemTelDigits.slice(2);
         }
 
-        // 1. Correspondência estrita por dígitos de telefone
-        const matchTel =
+        return (
           incomingDigits.length >= 8 &&
           itemTelDigits.length >= 8 &&
-          (itemTelDigits.endsWith(incomingDigits.slice(-8)) || incomingDigits.endsWith(itemTelDigits.slice(-8)));
-
-        // 2. Correspondência por nome caso o contato esteja na fila de cobrança de hoje
-        const matchNome =
-          incoming.length >= 4 &&
-          (itemNome === incoming || itemNome.startsWith(incoming) || incoming.startsWith(itemNome));
-
-        return matchTel || matchNome;
+          (itemTelDigits.endsWith(incomingDigits.slice(-8)) || incomingDigits.endsWith(itemTelDigits.slice(-8)))
+        );
       });
 
       if (matchFila && matchFila.parceiroId) {
@@ -216,7 +212,7 @@ export function SankhyaCustomerContextPanel({
           openWhatsAppWithContact(matchFila.telefone || activePhoneOrName, matchFila.parceiroId, matchFila.parceiroNome);
         }
       } else {
-        // Se não for da fila de cobrança do dia, limpa o parceiroId anterior para pesquisar pelo novo telefone no Sankhya
+        // Se for um contato externo ou não presente na fila, limpa o parceiroId anterior para consultar no Sankhya pelo telefone
         if (activePartnerId) {
           openWhatsAppWithContact(activePhoneOrName, undefined, undefined);
         }

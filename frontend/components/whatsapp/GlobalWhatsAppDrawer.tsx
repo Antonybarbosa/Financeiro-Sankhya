@@ -43,10 +43,10 @@ export function GlobalWhatsAppDrawer() {
   // Escutar eventos de mudança de chat vindos da extensão Chrome
   useEffect(() => {
     const unsubscribe = whatsappBridge.subscribeChatChange((info) => {
-      const incomingRaw = (info.phone || info.phoneOrName || '').trim();
+      const incomingRaw = (info.phone || '').trim();
       const infoDigits = incomingRaw.replace(/\D/g, '');
 
-      // Só aceita se houver pelo menos 8 dígitos de telefone (ignora nomes puros)
+      // Só aceita se houver pelo menos 8 dígitos de telefone real extraído
       if (infoDigits.length >= 8) {
         const cleanPhone =
           infoDigits.startsWith('55') && (infoDigits.length === 12 || infoDigits.length === 13)
@@ -57,18 +57,11 @@ export function GlobalWhatsAppDrawer() {
         const currentActive = (state.activePhoneOrName || '').trim();
         const currentDigits = currentActive.replace(/\D/g, '');
 
-        // 1. Se for exatamente o mesmo número, ignora
         if (cleanPhone === currentActive || (currentDigits.length >= 8 && currentDigits.endsWith(cleanPhone.slice(-8)))) {
           return;
         }
 
-        // Só atualiza se for uma conversa com telefone validado
         openWhatsAppWithContact(cleanPhone, undefined, info.name);
-      } else if (info.name && info.name.trim()) {
-        const state = useWhatsAppStore.getState();
-        if (info.name.trim() !== (state.activePhoneOrName || '').trim()) {
-          openWhatsAppWithContact(info.name.trim(), undefined, info.name.trim());
-        }
       }
     });
 
