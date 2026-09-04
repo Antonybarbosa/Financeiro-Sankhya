@@ -201,31 +201,8 @@ export function SankhyaCustomerContextPanel({
     if (activePhoneOrName !== lastSwitchedContactRef.current) {
       lastSwitchedContactRef.current = activePhoneOrName;
       setActiveTab('atendimento');
-
-      // Se o telefone coincidir estritamente com algum item da fila de cobrança, vincula o parceiroId
-      const matchFila = rawFilaItems.find((item) => {
-        let itemTelDigits = (item.telefone || '').replace(/\D/g, '');
-        if (itemTelDigits.startsWith('55') && (itemTelDigits.length === 12 || itemTelDigits.length === 13)) {
-          itemTelDigits = itemTelDigits.slice(2);
-        }
-
-        return (
-          incomingDigits.length >= 8 &&
-          itemTelDigits.length >= 8 &&
-          (itemTelDigits.endsWith(incomingDigits.slice(-8)) || incomingDigits.endsWith(itemTelDigits.slice(-8)))
-        );
-      });
-
-      if (matchFila && matchFila.parceiroId) {
-        if (matchFila.parceiroId !== activePartnerId) {
-          openWhatsAppWithContact(matchFila.telefone || activePhoneOrName, matchFila.parceiroId, matchFila.parceiroNome);
-        }
-      } else {
-        // Se for um contato externo ou não presente na fila, limpa o parceiroId anterior para consultar no Sankhya pelo telefone
-        openWhatsAppWithContact(activePhoneOrName, undefined, undefined);
-      }
     }
-  }, [activePhoneOrName, rawFilaItems, activePartnerId, openWhatsAppWithContact]);
+  }, [activePhoneOrName]);
 
   // Busca cliente e títulos por parceiroId ou telefone (com proteção contra busca duplicada e race condition)
   const lastFetchedKeyRef = useRef<string>('');
@@ -236,23 +213,36 @@ export function SankhyaCustomerContextPanel({
       return;
     }
 
-    const currentKey = `${activePartnerId || ''}_${activePhoneOrName || ''}`;
-
-    // Se já foi buscado exatamente com esta mesma chave, evita disparar novamente
-    if (lastFetchedKeyRef.current === currentKey) {
-      return;
-    }
-
-    // Se o cliente atual já possui o mesmo parceiroId, não refaz
-    if (cliente && activePartnerId && cliente.codParc === activePartnerId) {
-      return;
-    }
-
     const phoneDigits = (activePhoneOrName || '').replace(/\D/g, '');
     const validPhone = phoneDigits.length >= 8 ? activePhoneOrName : undefined;
 
     // Se não tiver parceiroId E não for um telefone com pelo menos 8 dígitos, não dispara busca
     if (!activePartnerId && !validPhone) {
+      return;
+    }
+
+    // Se o cliente atual já é exatamente este parceiro ou possui exatamente este mesmo telefone, mantém sem refazer busca
+    if (cliente) {
+      if (activePartnerId && cliente.codParc === activePartnerId) {
+        return;
+      }
+      if (validPhone && cliente.telefone) {
+        const clienteDigits = cliente.telefone.replace(/\D/g, '');
+        const searchDigits = validPhone.replace(/\D/g, '');
+        if (
+          clienteDigits.length >= 8 &&
+          searchDigits.length >= 8 &&
+          (clienteDigits.endsWith(searchDigits.slice(-8)) || searchDigits.endsWith(clienteDigits.slice(-8)))
+        ) {
+          return;
+        }
+      }
+    }
+
+    const currentKey = `${activePartnerId || ''}_${validPhone || ''}`;
+
+    // Se já foi buscado exatamente com esta mesma chave, evita disparar novamente
+    if (lastFetchedKeyRef.current === currentKey) {
       return;
     }
 
@@ -279,7 +269,7 @@ export function SankhyaCustomerContextPanel({
           const ids = new Set<number>(listTitulos.map((t) => t.id));
           setSelectedIds(ids);
         } else {
-          // Quando o cliente não for localizado para o novo número/termo buscado
+          // Quando o cliente realmente não for localizado para a nova busca realizada
           setCliente(null);
           setClientesEncontrados([]);
           setTitulos([]);
