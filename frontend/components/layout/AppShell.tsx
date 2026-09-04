@@ -43,8 +43,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         )}
       </main>
 
-      {/* WhatsApp Web Drawer Persistente */}
-      <GlobalWhatsAppDrawer />
+      {/* WhatsApp Web Drawer Persistente (Apenas em outras páginas) */}
+      {!isWhatsAppPage && <GlobalWhatsAppDrawer />}
 
       {/* Botão Flutuante do WhatsApp em qualquer tela do sistema */}
       {!isWhatsAppPage && (

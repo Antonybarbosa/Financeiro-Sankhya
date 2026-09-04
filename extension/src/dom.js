@@ -199,7 +199,12 @@
           }
         }
 
-        const digitsOnly = titleText.replace(/\D/g, "");
+        let digitsOnly = titleText.replace(/\D/g, "");
+        // Se começar com DDI 55 (Brasil) e tiver 12 ou 13 dígitos (55 + DDD + 8 ou 9 dígitos), remove o 55
+        if (digitsOnly.startsWith("55") && (digitsOnly.length === 12 || digitsOnly.length === 13)) {
+          digitsOnly = digitsOnly.slice(2);
+        }
+
         const phone = digitsOnly.length >= 8 ? digitsOnly : null;
 
         return {

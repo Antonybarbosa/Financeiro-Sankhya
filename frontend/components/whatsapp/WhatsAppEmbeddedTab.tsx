@@ -5,6 +5,7 @@ import { whatsappBridge } from '@/lib/whatsappBridge';
 import { SankhyaCustomerContextPanel } from './SankhyaCustomerContextPanel';
 import { WhatsAppSkillDiagnosticModal } from './WhatsAppSkillDiagnosticModal';
 import { useUIStore } from '@/store/uiStore';
+import { useWhatsAppStore } from '@/store/whatsappStore';
 import {
   MessageSquare,
   ShieldAlert,
@@ -35,7 +36,39 @@ export function WhatsAppEmbeddedTab() {
   useEffect(() => {
     const unsubscribe = whatsappBridge.subscribeChatChange((info) => {
       if (info.phoneOrName) {
-        setActivePhoneOrName(info.phoneOrName);
+        const state = useWhatsAppStore.getState();
+        const incoming = (info.phoneOrName || '').trim();
+        const currentActive = (activePhoneOrName || state.activePhoneOrName || '').trim();
+
+        // 1. Se for exatamente o mesmo identificador/texto, ignora
+        if (incoming === currentActive) {
+          return;
+        }
+
+        const infoDigits = incoming.replace(/\D/g, '');
+        const currentDigits = currentActive.replace(/\D/g, '');
+
+        // 2. Se ambos tiverem dígitos e forem iguais (com ou sem 55/DDD), ignora
+        const isSameDigits =
+          infoDigits.length >= 8 &&
+          currentDigits.length >= 8 &&
+          (infoDigits === currentDigits || currentDigits.endsWith(infoDigits) || infoDigits.endsWith(currentDigits));
+
+        // 3. Se for o mesmo nome de parceiro ativo, ignora
+        const isSameName =
+          state.activePartnerName &&
+          incoming.toLowerCase().includes(state.activePartnerName.toLowerCase());
+
+        if (isSameDigits || isSameName) {
+          return;
+        }
+
+        let incomingClean = incoming;
+        if (infoDigits.startsWith('55') && (infoDigits.length === 12 || infoDigits.length === 13)) {
+          incomingClean = infoDigits.slice(2);
+        }
+
+        setActivePhoneOrName(incomingClean);
         // Se um contato for detectado, garante que o painel abra para o operador ver os títulos
         setPanelOpen(true);
       }
@@ -194,9 +227,9 @@ export function WhatsAppEmbeddedTab() {
           </div>
         </div>
 
-        {/* Lado Direito: Painel Financeiro Sankhya (Mais Estreito) */}
+        {/* Lado Direito: Painel Financeiro Sankhya (Mais Amplo) */}
         {panelOpen && (
-          <div className="w-72 lg:w-80 shrink-0 h-full shadow-xl transition-all duration-200 ease-in-out z-20">
+          <div className="w-80 lg:w-96 shrink-0 h-full shadow-xl transition-all duration-200 ease-in-out z-20">
             <SankhyaCustomerContextPanel
               activePhoneOrName={activePhoneOrName}
               iframeRef={iframeRef.current}

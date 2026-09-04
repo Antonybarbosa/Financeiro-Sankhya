@@ -26,63 +26,85 @@ export class WhatsAppController {
   ) {}
 
   /**
-   * Busca um parceiro no Sankhya pelo número de telefone (Formatado ou apenas dígitos).
+   * Busca clientes no Sankhya por Telefone, Celular ou Nome/Razão Social
    */
   @Public()
   @Get('cliente-por-telefone')
   async buscarClientePorTelefone(@Query('telefone') telefone: string) {
-    if (!telefone) {
-      return { encontrado: false, cliente: null };
+    if (!telefone || !telefone.trim()) {
+      return { encontrado: false, clientes: [], cliente: null };
     }
 
-    const apenasNumeros = telefone.replace(/\D/g, '');
-    if (apenasNumeros.length < 8) {
-      return { encontrado: false, cliente: null };
+    const termo = telefone.trim();
+    const apenasNumeros = termo.replace(/\D/g, '');
+    const temTelefoneValido = apenasNumeros.length >= 8;
+    const ultimosDigitos = temTelefoneValido ? apenasNumeros.slice(-8) : '';
+    const nomeTermo = termo.replace(/'/g, "''").toUpperCase();
+
+    // Monta cláusula WHERE híbrida: por dígitos de telefone/celular OU por substring do nome
+    const condicoes: string[] = [];
+    if (temTelefoneValido) {
+      condicoes.push(`REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(PAR.TELEFONE, '-', ''), ' ', ''), '(', ''), ')', ''), '+', '') LIKE '%${ultimosDigitos}%'`);
+      condicoes.push(`REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(CTT.TELEFONE, '-', ''), ' ', ''), '(', ''), ')', ''), '+', '') LIKE '%${ultimosDigitos}%'`);
+      condicoes.push(`REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(CTT.CELULAR, '-', ''), ' ', ''), '(', ''), ')', ''), '+', '') LIKE '%${ultimosDigitos}%'`);
     }
 
-    const ultimosDigitos = apenasNumeros.slice(-8);
+    // Se o termo contiver letras (ou não for só dígitos), busca também por Nome e Razão Social
+    if (/[a-zA-Z]/.test(termo) && termo.length >= 3) {
+      condicoes.push(`UPPER(PAR.NOMEPARC) LIKE '%${nomeTermo}%'`);
+      condicoes.push(`UPPER(PAR.RAZAOSOCIAL) LIKE '%${nomeTermo}%'`);
+      condicoes.push(`UPPER(CTT.NOMECONTATO) LIKE '%${nomeTermo}%'`);
+    }
+
+    if (condicoes.length === 0) {
+      return { encontrado: false, clientes: [], cliente: null };
+    }
 
     const sql = `
-      SELECT TOP 1 
-        PAR.CODPARC,
-        PAR.NOMEPARC,
-        PAR.RAZAOSOCIAL,
-        PAR.CGC_CPF,
-        PAR.TELEFONE,
-        PAR.EMAIL,
-        PAR.TIPPESSOA,
-        PAR.LIMCRED,
-        PAR.SITUACAO
-      FROM TGFPAR PAR
-      LEFT JOIN TGFCTT CTT ON CTT.CODPARC = PAR.CODPARC
-      WHERE REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(PAR.TELEFONE, '-', ''), ' ', ''), '(', ''), ')', ''), '+', '') LIKE '%${ultimosDigitos}%'
-         OR REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(CTT.TELEFONE, '-', ''), ' ', ''), '(', ''), ')', ''), '+', '') LIKE '%${ultimosDigitos}%'
-         OR REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(CTT.CELULAR, '-', ''), ' ', ''), '(', ''), ')', ''), '+', '') LIKE '%${ultimosDigitos}%'
-      ORDER BY PAR.CODPARC ASC
+      SELECT * FROM (
+        SELECT DISTINCT
+          PAR.CODPARC,
+          PAR.NOMEPARC,
+          PAR.RAZAOSOCIAL,
+          PAR.CGC_CPF,
+          PAR.TELEFONE,
+          PAR.EMAIL,
+          PAR.TIPPESSOA,
+          PAR.LIMCRED,
+          PAR.SITUACAO
+        FROM TGFPAR PAR
+        LEFT JOIN TGFCTT CTT ON CTT.CODPARC = PAR.CODPARC
+        WHERE ${condicoes.join(' OR ')}
+        ORDER BY PAR.NOMEPARC ASC
+      ) WHERE ROWNUM <= 10
     `;
 
     try {
       const rows = await this.sankhyaGateway.executeQuery(sql);
       if (!rows || rows.length === 0) {
-        return { encontrado: false, cliente: null };
+        return { encontrado: false, clientes: [], cliente: null };
       }
 
-      const r = rows[0];
-      const cliente = {
+      const clientes = rows.map((r: any) => ({
         codParc: Number(r.CODPARC),
         nomeParc: String(r.NOMEPARC || r.RAZAOSOCIAL || ''),
         razaoSocial: String(r.RAZAOSOCIAL || ''),
         cnpjCpf: String(r.CGC_CPF || ''),
-        telefone: String(r.TELEFONE || telefone),
+        telefone: String(r.TELEFONE || termo),
         email: r.EMAIL ? String(r.EMAIL) : null,
         tipoPessoa: String(r.TIPPESSOA || 'J'),
         limiteCredito: r.LIMCRED ? Number(r.LIMCRED) : 0,
         situacao: r.SITUACAO ? String(r.SITUACAO) : null,
-      };
+      }));
 
-      return { encontrado: true, cliente };
+      return {
+        encontrado: true,
+        total: clientes.length,
+        cliente: clientes[0], // Primeiro/principal como atalho
+        clientes,
+      };
     } catch (error: any) {
-      return { encontrado: false, cliente: null, erro: error?.message };
+      return { encontrado: false, clientes: [], cliente: null, erro: error?.message };
     }
   }
 
@@ -95,10 +117,8 @@ export class WhatsAppController {
     @Query('telefone') telefone?: string,
     @Query('parceiroId') parceiroId?: string,
   ) {
-    let resCliente: { encontrado: boolean; cliente: any; erro?: string } = {
-      encontrado: false,
-      cliente: null,
-    };
+    let clientesEncontrados: any[] = [];
+    let clientePrincipal: any = null;
 
     if (parceiroId) {
       try {
@@ -106,20 +126,18 @@ export class WhatsAppController {
         if (!isNaN(idNum)) {
           const clienteSankhya = await this.clienteUseCases.buscarPorId(idNum);
           if (clienteSankhya) {
-            resCliente = {
-              encontrado: true,
-              cliente: {
-                codParc: clienteSankhya.codParc,
-                nomeParc: clienteSankhya.nomeParc,
-                razaoSocial: clienteSankhya.razaoSocial || clienteSankhya.nomeParc,
-                cnpjCpf: clienteSankhya.cnpjCpf,
-                telefone: clienteSankhya.telefone || telefone || '',
-                email: clienteSankhya.email || null,
-                tipoPessoa: clienteSankhya.tipoPessoa || 'J',
-                limiteCredito: clienteSankhya.limiteCredito || 0,
-                situacao: clienteSankhya.situacao || 'A',
-              },
+            clientePrincipal = {
+              codParc: clienteSankhya.codParc,
+              nomeParc: clienteSankhya.nomeParc,
+              razaoSocial: clienteSankhya.razaoSocial || clienteSankhya.nomeParc,
+              cnpjCpf: clienteSankhya.cnpjCpf,
+              telefone: clienteSankhya.telefone || telefone || '',
+              email: clienteSankhya.email || null,
+              tipoPessoa: clienteSankhya.tipoPessoa || 'J',
+              limiteCredito: clienteSankhya.limiteCredito || 0,
+              situacao: clienteSankhya.situacao || 'A',
             };
+            clientesEncontrados = [clientePrincipal];
           }
         }
       } catch (err) {
@@ -127,14 +145,19 @@ export class WhatsAppController {
       }
     }
 
-    if (!resCliente.encontrado && telefone) {
-      resCliente = await this.buscarClientePorTelefone(telefone);
-    }
-    if (!resCliente.encontrado || !resCliente.cliente) {
-      return { cliente: null, titulos: [], totalEmAberto: 0 };
+    if (!clientePrincipal && telefone) {
+      const resBusca = await this.buscarClientePorTelefone(telefone);
+      if (resBusca.encontrado && resBusca.clientes && resBusca.clientes.length > 0) {
+        clientesEncontrados = resBusca.clientes;
+        clientePrincipal = resBusca.clientes[0];
+      }
     }
 
-    const codParc = resCliente.cliente.codParc;
+    if (!clientePrincipal) {
+      return { cliente: null, clientes: [], titulos: [], totalEmAberto: 0 };
+    }
+
+    const codParc = clientePrincipal.codParc;
     const titulos = await this.tituloUseCases.buscarPorCliente(codParc);
 
     const titulosAbertos = titulos.filter(
@@ -144,7 +167,8 @@ export class WhatsAppController {
     const totalEmAberto = titulosAbertos.reduce((sum, t) => sum + (t.valorEmAberto || 0), 0);
 
     return {
-      cliente: resCliente.cliente,
+      cliente: clientePrincipal,
+      clientes: clientesEncontrados,
       titulos: titulosAbertos,
       totalEmAberto,
     };
