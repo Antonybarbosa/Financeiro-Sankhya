@@ -54,12 +54,9 @@
       const currentPhone = current.phone || "";
       const currentName = current.name || "";
 
-      // Só dispara se houver um NOVO telefone detectado OU se mudou para outro contato por nome
-      const isNewPhone = currentPhone && currentPhone !== lastChatPhone;
-      const isNewNamedChat = !currentPhone && currentName && currentName !== lastName;
-
-      if (isNewPhone || isNewNamedChat) {
-        if (currentPhone) lastChatPhone = currentPhone;
+      // Só dispara se houver um NOVO telefone de contato REAL detectado (mínimo 8 dígitos)
+      if (currentPhone && currentPhone.length >= 8 && currentPhone !== lastChatPhone) {
+        lastChatPhone = currentPhone;
         lastName = currentName;
 
         const evtPayload = {
@@ -67,13 +64,13 @@
           event: "chat_changed",
           timestamp: Date.now(),
           data: {
-            phoneOrName: currentPhone || currentName || null,
-            phone: currentPhone || null,
+            phoneOrName: currentPhone,
+            phone: currentPhone,
             name: currentName || "",
-            hasPhone: !!currentPhone,
+            hasPhone: true,
           },
         };
-        console.log("[WhatsApp Skill] Disparando evento chat_changed:", evtPayload.data);
+        console.log("[WhatsApp Skill] Disparando evento chat_changed com telefone do contato:", evtPayload.data);
         try {
           window.top.postMessage(evtPayload, "*");
           window.parent.postMessage(evtPayload, "*");
@@ -89,11 +86,10 @@
       setTimeout(checkAndNotifyChat, 1400);
     }, true);
 
-    // Heartbeat e monitor contínuo a cada 800ms
+    // Apenas Heartbeat a cada 2000ms para indicar que a extensão está conectada
     setInterval(() => {
       notifyReady();
-      checkAndNotifyChat();
-    }, 800);
+    }, 2000);
 
     // Manipulador central de comandos semânticos
     async function handleCommand(command) {
