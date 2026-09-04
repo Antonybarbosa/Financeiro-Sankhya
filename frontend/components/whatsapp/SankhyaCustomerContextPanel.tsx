@@ -105,25 +105,32 @@ export function SankhyaCustomerContextPanel({
   const [filterDropdownOpen, setFilterDropdownOpen] = useState(false);
   const filterDropdownRef = useRef<HTMLDivElement | null>(null);
 
+  const [templateDropdownOpen, setTemplateDropdownOpen] = useState(false);
+  const templateDropdownRef = useRef<HTMLDivElement | null>(null);
+
   const [configModalOpen, setConfigModalOpen] = useState(false);
   const [configModalTab, setConfigModalTab] = useState<'templates' | 'filtros'>('templates');
   const [diagnosticModalOpen, setDiagnosticModalOpen] = useState(false);
   const [mensagemEditada, setMensagemEditada] = useState('');
   const [sending, setSending] = useState(false);
 
-  // Fechar dropdown de filtros ao clicar fora ou apertar Esc
+  // Fechar dropdowns ao clicar fora ou apertar Esc
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
       if (filterDropdownRef.current && !filterDropdownRef.current.contains(event.target as Node)) {
         setFilterDropdownOpen(false);
       }
+      if (templateDropdownRef.current && !templateDropdownRef.current.contains(event.target as Node)) {
+        setTemplateDropdownOpen(false);
+      }
     }
     function handleKeyDown(event: KeyboardEvent) {
       if (event.key === 'Escape') {
         setFilterDropdownOpen(false);
+        setTemplateDropdownOpen(false);
       }
     }
-    if (filterDropdownOpen) {
+    if (filterDropdownOpen || templateDropdownOpen) {
       document.addEventListener('mousedown', handleClickOutside);
       document.addEventListener('keydown', handleKeyDown);
     }
@@ -131,7 +138,7 @@ export function SankhyaCustomerContextPanel({
       document.removeEventListener('mousedown', handleClickOutside);
       document.removeEventListener('keydown', handleKeyDown);
     };
-  }, [filterDropdownOpen]);
+  }, [filterDropdownOpen, templateDropdownOpen]);
 
   // Modais de Documentos e Renegociação
   const [boletoTituloId, setBoletoTituloId] = useState<number | null>(null);
@@ -1130,8 +1137,8 @@ export function SankhyaCustomerContextPanel({
 
                 {/* 4. AÇÕES RÁPIDAS & SELETOR DE MODELO & EDITOR DE MENSAGEM */}
                 <div className="space-y-2.5 pt-2.5 border-t border-gray-100">
-                  {/* Seletor do Modelo de Mensagem Ativo */}
-                  <div className="space-y-1">
+                  {/* Seletor do Modelo de Mensagem Ativo (Custom Dropdown Interativo) */}
+                  <div className="space-y-1" ref={templateDropdownRef}>
                     <div className="flex items-center justify-between text-[11px] font-bold text-gray-700">
                       <span className="flex items-center gap-1">
                         <Sparkles className="h-3.5 w-3.5 text-emerald-600" />
@@ -1140,6 +1147,7 @@ export function SankhyaCustomerContextPanel({
                       <button
                         type="button"
                         onClick={() => {
+                          setTemplateDropdownOpen(false);
                           setConfigModalTab('templates');
                           setConfigModalOpen(true);
                         }}
@@ -1152,18 +1160,74 @@ export function SankhyaCustomerContextPanel({
                     </div>
 
                     <div className="relative">
-                      <select
-                        id="seletor-modelo-mensagem-dropdown"
-                        value={templateAtivoId}
-                        onChange={(e) => setTemplateAtivoId(e.target.value)}
-                        className="w-full rounded-lg border border-gray-300 bg-white px-2.5 py-1.5 text-xs font-bold text-gray-800 hover:border-emerald-500 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 focus:outline-none shadow-2xs cursor-pointer"
+                      {/* Botão Gatilho do Dropdown */}
+                      <button
+                        id="seletor-modelo-mensagem-dropdown-btn"
+                        type="button"
+                        onClick={() => setTemplateDropdownOpen((prev) => !prev)}
+                        className="w-full flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-lg border border-gray-300 bg-white hover:border-emerald-500 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 text-xs font-bold text-gray-800 shadow-2xs transition-all cursor-pointer text-left"
                       >
-                        {templates.map((tpl) => (
-                          <option key={tpl.id} value={tpl.id}>
-                            {tpl.titulo}
-                          </option>
-                        ))}
-                      </select>
+                        <span className="truncate">{templateAtual?.titulo || 'Selecione um Modelo'}</span>
+                        <ChevronDown
+                          className={`h-3.5 w-3.5 text-gray-400 shrink-0 transition-transform duration-200 ${
+                            templateDropdownOpen ? 'rotate-180' : ''
+                          }`}
+                        />
+                      </button>
+
+                      {/* Popover Flutuante de Opções de Modelos */}
+                      {templateDropdownOpen && (
+                        <div className="absolute bottom-full left-0 right-0 mb-1 z-50 bg-white border border-gray-200 rounded-xl shadow-2xl py-1 max-h-64 overflow-y-auto">
+                          <div className="px-3 py-1.5 text-[10px] font-bold text-gray-400 uppercase tracking-wider border-b border-gray-100 flex items-center justify-between">
+                            <span>Modelos de Mensagem</span>
+                            <span>{templates.length} disponíveis</span>
+                          </div>
+
+                          <div className="py-1">
+                            {templates.map((tpl) => {
+                              const isSelected = tpl.id === templateAtivoId;
+                              return (
+                                <button
+                                  key={tpl.id}
+                                  type="button"
+                                  onClick={() => {
+                                    setTemplateAtivoId(tpl.id);
+                                    setTemplateDropdownOpen(false);
+                                  }}
+                                  className={`w-full flex items-center justify-between gap-2 px-3 py-2 text-xs text-left transition-colors cursor-pointer ${
+                                    isSelected
+                                      ? 'bg-emerald-50 text-emerald-950 font-bold'
+                                      : 'text-gray-700 hover:bg-gray-50 font-medium'
+                                  }`}
+                                >
+                                  <div className="truncate">
+                                    <p className="truncate leading-tight">{tpl.titulo}</p>
+                                    <p className="text-[10px] text-gray-400 font-normal truncate mt-0.5">
+                                      {tpl.descricao || tpl.mensagemTemplate.substring(0, 45) + '...'}
+                                    </p>
+                                  </div>
+                                  {isSelected && <Check className="h-3.5 w-3.5 text-emerald-600 shrink-0" />}
+                                </button>
+                              );
+                            })}
+                          </div>
+
+                          <div className="border-t border-gray-100 pt-1 px-1 bg-gray-50/50">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setTemplateDropdownOpen(false);
+                                setConfigModalTab('templates');
+                                setConfigModalOpen(true);
+                              }}
+                              className="w-full flex items-center justify-center gap-1.5 px-2.5 py-1.5 text-[11px] font-bold text-emerald-700 hover:text-emerald-800 hover:bg-emerald-50 rounded-lg transition-colors cursor-pointer"
+                            >
+                              <Settings className="h-3.5 w-3.5" />
+                              <span>Personalizar / Criar Modelos</span>
+                            </button>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   </div>
 
