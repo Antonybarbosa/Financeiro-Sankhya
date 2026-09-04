@@ -275,6 +275,28 @@
           return null;
         };
 
+        // Helper para obter o telefone do próprio usuário logado e NUNCA confundi-lo com o contato
+        const getSelfPhone = () => {
+          try {
+            const store = window.WhatsAppStore || window.Store;
+            if (store) {
+              const selfWid =
+                store.User?.getMe?.()?.user ||
+                store.Conn?.wid?.user ||
+                store.User?.getMaybeMeUser?.()?.user;
+              if (selfWid) return this.cleanPhoneNumber(selfWid);
+            }
+          } catch (e) {}
+          return null;
+        };
+        const selfPhone = getSelfPhone();
+
+        const isSelfOrInvalid = (p) => {
+          if (!p) return true;
+          if (selfPhone && p === selfPhone) return true;
+          return false;
+        };
+
         // ESTRATÉGIA 0: XPath Exato fornecido da Seção de Dados do Contato
         try {
           const xpaths = [
@@ -290,7 +312,7 @@
             if (node) {
               const txt = (node.innerText || node.textContent || "").trim();
               const cleaned = this.cleanPhoneNumber(txt);
-              if (cleaned) {
+              if (cleaned && !isSelfOrInvalid(cleaned)) {
                 phone = cleaned;
                 console.log("[WhatsApp Skill] Telefone extraído com sucesso do XPath:", phone, "do texto:", txt);
                 break;
@@ -309,7 +331,7 @@
               const txt = (sp.innerText || sp.textContent || "").trim();
               if (txt && /^\+?55\s?\(?\d{2}\)?\s?\d{4,5}[-\s]?\d{4}$/.test(txt)) {
                 const cleaned = this.cleanPhoneNumber(txt);
-                if (cleaned) {
+                if (cleaned && !isSelfOrInvalid(cleaned)) {
                   phone = cleaned;
                   console.log("[WhatsApp Skill] Telefone extraído do seletor de section:", phone);
                   break;
@@ -339,32 +361,34 @@
               if (activeChat && activeChat.id) {
                 const jidUser = activeChat.id.user || (activeChat.id._serialized || "").split("@")[0];
                 if (jidUser && !activeChat.isGroup && !activeChat.id._serialized?.includes("@g.us")) {
-                  phone = this.cleanPhoneNumber(jidUser);
-                  titleText = activeChat.name || activeChat.formattedTitle || "";
-                  console.log("[WhatsApp Skill] Telefone extraído com sucesso do WhatsAppStore:", phone, "Nome:", titleText);
+                  const cleaned = this.cleanPhoneNumber(jidUser);
+                  if (cleaned && !isSelfOrInvalid(cleaned)) {
+                    phone = cleaned;
+                    titleText = activeChat.name || activeChat.formattedTitle || "";
+                    console.log("[WhatsApp Skill] Telefone extraído com sucesso do WhatsAppStore:", phone, "Nome:", titleText);
+                  }
                 }
               }
             }
           } catch (e) {}
         }
 
-        // ESTRATÉGIA 2: Varredura de atributos DOM em todos os elementos de #main e #side ativo
+        // ESTRATÉGIA 2: Varredura de atributos DOM estritamente nos nós do CONTATO (#side ativo e #main header)
         if (!phone) {
           try {
             const elementsToScan = [
-              ...document.querySelectorAll("#main *"),
               ...document.querySelectorAll("#side [aria-selected='true'] *"),
               ...document.querySelectorAll("#side [aria-selected='true']"),
+              ...document.querySelectorAll("#main header *"),
             ];
 
             for (const el of elementsToScan) {
-              // Checar todos os atributos do elemento (data-id, src, href, title, etc.)
               if (el.attributes) {
                 for (let i = 0; i < el.attributes.length; i++) {
                   const attrVal = el.attributes[i].value;
                   if (attrVal && typeof attrVal === "string") {
                     const cleaned = extractJidDigits(attrVal);
-                    if (cleaned) {
+                    if (cleaned && !isSelfOrInvalid(cleaned)) {
                       phone = cleaned;
                       console.log("[WhatsApp Skill] Telefone extraído via atributo DOM (" + el.attributes[i].name + "):", phone);
                       break;
@@ -377,31 +401,38 @@
           } catch (e) {}
         }
 
-        // ESTRATÉGIA 3: Deep Scan na Árvore React Fiber de #main e #side (Subindo e descendo a árvore)
+        // ESTRATÉGIA 3: Deep Scan na Árvore React Fiber estritamente nos nós do CONTATO
         if (!phone) {
           try {
             const checkObjectForPhone = (obj, depth = 0, seen = new Set()) => {
-              if (!obj || depth > 6 || typeof obj !== "object" || seen.has(obj)) return null;
+              if (!obj || depth > 5 || typeof obj !== "object" || seen.has(obj)) return null;
               seen.add(obj);
 
               if (typeof obj._serialized === "string" && !obj._serialized.includes("@g.us")) {
                 const m = obj._serialized.match(/(\d{10,13})@c\.us/);
-                if (m && m[1]) return this.cleanPhoneNumber(m[1]);
+                if (m && m[1]) {
+                  const c = this.cleanPhoneNumber(m[1]);
+                  if (c && !isSelfOrInvalid(c)) return c;
+                }
               }
               if (typeof obj.user === "string" && /^\d{10,13}$/.test(obj.user)) {
-                return this.cleanPhoneNumber(obj.user);
+                const c = this.cleanPhoneNumber(obj.user);
+                if (c && !isSelfOrInvalid(c)) return c;
               }
               if (typeof obj.jid === "string" && !obj.jid.includes("@g.us")) {
                 const m = obj.jid.match(/(\d{10,13})@c\.us/);
-                if (m && m[1]) return this.cleanPhoneNumber(m[1]);
+                if (m && m[1]) {
+                  const c = this.cleanPhoneNumber(m[1]);
+                  if (c && !isSelfOrInvalid(c)) return c;
+                }
               }
               if (typeof obj.phoneNumber === "string") {
                 const c = this.cleanPhoneNumber(obj.phoneNumber);
-                if (c) return c;
+                if (c && !isSelfOrInvalid(c)) return c;
               }
 
               for (const k in obj) {
-                if (["chat", "contact", "activeChat", "id", "item", "user", "props", "data", "model", "value"].includes(k)) {
+                if (["chat", "contact", "activeChat", "id", "item", "user", "props", "data", "model"].includes(k)) {
                   const res = checkObjectForPhone(obj[k], depth + 1, seen);
                   if (res) return res;
                 }
@@ -415,7 +446,7 @@
               const queue = [fiber];
               let count = 0;
 
-              while (queue.length > 0 && count < 300) {
+              while (queue.length > 0 && count < 150) {
                 count++;
                 const node = queue.shift();
                 if (!node || visited.has(node)) continue;
@@ -429,10 +460,6 @@
                   const found = checkObjectForPhone(node.memoizedState);
                   if (found) return found;
                 }
-                if (node.stateNode && typeof node.stateNode === "object") {
-                  const found = checkObjectForPhone(node.stateNode);
-                  if (found) return found;
-                }
 
                 if (node.return && !visited.has(node.return)) queue.push(node.return);
                 if (node.child && !visited.has(node.child)) queue.push(node.child);
@@ -442,9 +469,7 @@
             };
 
             const rootProbeElements = [
-              document.querySelector("#main header"),
               document.querySelector("#main header div[role='button']"),
-              document.querySelector("#main"),
               document.querySelector("#side [aria-selected='true']"),
             ].filter(Boolean);
 
@@ -452,7 +477,7 @@
               for (const prop in el) {
                 if (prop.startsWith("__reactFiber$") || prop.startsWith("__reactInternalInstance$") || prop.startsWith("__reactProps$")) {
                   const found = scanFiberUpAndDown(el[prop]);
-                  if (found) {
+                  if (found && !isSelfOrInvalid(found)) {
                     phone = found;
                     console.log("[WhatsApp Skill] Telefone extraído via React Fiber:", phone);
                     break;
@@ -474,7 +499,7 @@
               const txt = (node.innerText || "").trim();
               if (txt && /^\+?55\s?\(?\d{2}\)?\s?\d{4,5}[-\s]?\d{4}$/.test(txt)) {
                 const cleaned = this.cleanPhoneNumber(txt);
-                if (cleaned) {
+                if (cleaned && !isSelfOrInvalid(cleaned)) {
                   phone = cleaned;
                   console.log("[WhatsApp Skill] Telefone extraído do texto de dados do contato:", phone);
                   break;
@@ -530,7 +555,10 @@
         let cleanText = (titleText || "").replace(/\(você\)/gi, "").replace(/\(you\)/gi, "").trim();
 
         if (!phone) {
-          phone = this.cleanPhoneNumber(cleanText);
+          const rawHeaderPhone = this.cleanPhoneNumber(cleanText);
+          if (rawHeaderPhone && !isSelfOrInvalid(rawHeaderPhone)) {
+            phone = rawHeaderPhone;
+          }
         }
 
         const chatKey = cleanText ? cleanText.toLowerCase() : "";
