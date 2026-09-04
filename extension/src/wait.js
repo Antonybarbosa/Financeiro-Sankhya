@@ -1,4 +1,6 @@
 (function () {
+  if (!window.location.hostname.includes("whatsapp.com")) return;
+
   window.WhatsAppWait = {
     waitForElement: function (selectorList, timeoutMs = 6000) {
       return new Promise((resolve, reject) => {

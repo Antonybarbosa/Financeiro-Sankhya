@@ -1,6 +1,7 @@
 @import "tailwindcss";
 
-:root {
+:root, html, body {
+  color-scheme: light !important;
   --background: #ffffff;
   --foreground: #111827;
 }
@@ -16,16 +17,38 @@ body {
   background: var(--background);
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
+  color-scheme: light !important;
 }
 
-/* Forçar inputs, textareas e selects a terem texto escuro visível de alto contraste e cursor de texto */
+/* Blindagem definitiva de inputs, textareas e selects em toda a aplicacao */
 input, textarea, select {
+  color-scheme: light !important;
   color: #111827 !important;
+  -webkit-text-fill-color: #111827 !important;
   caret-color: #111827 !important;
-  pointer-events: auto;
+  pointer-events: auto !important;
+  user-select: text !important;
+  -webkit-user-select: text !important;
 }
 
 input::placeholder, textarea::placeholder {
   color: #9ca3af !important;
+  -webkit-text-fill-color: #9ca3af !important;
 }
+
+/* Prevenir que o Autofill do Chrome force fundo escuro ou texto invisivel */
+input:-webkit-autofill,
+input:-webkit-autofill:hover,
+input:-webkit-autofill:focus,
+textarea:-webkit-autofill,
+textarea:-webkit-autofill:hover,
+textarea:-webkit-autofill:focus,
+select:-webkit-autofill,
+select:-webkit-autofill:hover,
+select:-webkit-autofill:focus {
+  -webkit-text-fill-color: #111827 !important;
+  -webkit-box-shadow: 0 0 0px 1000px #ffffff inset !important;
+  transition: background-color 5000s ease-in-out 0s;
+}
+
 

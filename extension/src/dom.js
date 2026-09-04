@@ -1,4 +1,6 @@
 (function () {
+  if (!window.location.hostname.includes("whatsapp.com")) return;
+  
   // Inicializador da Store interna do WhatsApp Web via Webpack Chunks
   function initWhatsAppStore() {
     if (window.WhatsAppStore && window.WhatsAppStore.Chat) return;
