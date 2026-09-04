@@ -114,58 +114,41 @@
       return true;
     },
 
-    // 2. Simulação Humana de Digitação/Colagem para o Editor Lexical (React 18 no #main)
+    // 2. Simulação de Digitação/Inserção Única para o Editor Lexical (React 18 no #main)
     simulateHumanTyping: function (element, text) {
       if (!element) return false;
 
       element.focus();
 
-      // Posicionar cursor e limpar seleção
+      // Posicionar cursor e limpar conteúdo anterior
       try {
         const selection = window.getSelection();
         const range = document.createRange();
         range.selectNodeContents(element);
         selection.removeAllRanges();
         selection.addRange(range);
+        document.execCommand("delete", false, null);
       } catch (e) {}
 
-      // Passo A: Colagem via ClipboardEvent com DataTransfer real (Aceito nativamente pelo Lexical)
-      let pasteSuccess = false;
+      // Inserir texto uma única vez usando execCommand (nativamente suportado pelo Lexical / React)
+      let inserted = false;
       try {
-        const dataTransfer = new DataTransfer();
-        dataTransfer.setData("text/plain", text);
-        const pasteEvt = new ClipboardEvent("paste", {
-          bubbles: true,
-          cancelable: true,
-          clipboardData: dataTransfer,
-        });
-        pasteSuccess = element.dispatchEvent(pasteEvt);
+        inserted = document.execCommand("insertText", false, text);
       } catch (e) {}
 
-      // Fallback: execCommand insertText
-      if (!pasteSuccess || !element.textContent?.trim()) {
+      // Fallback: se execCommand falhar, usar ClipboardEvent paste único
+      if (!inserted) {
         try {
-          document.execCommand("insertText", false, text);
+          const dataTransfer = new DataTransfer();
+          dataTransfer.setData("text/plain", text);
+          const pasteEvt = new ClipboardEvent("paste", {
+            bubbles: true,
+            cancelable: true,
+            clipboardData: dataTransfer,
+          });
+          element.dispatchEvent(pasteEvt);
         } catch (e) {}
       }
-
-      // Disparar eventos de entrada que o Lexical e o React escutam para atualizar o estado
-      try {
-        element.dispatchEvent(new InputEvent("beforeinput", {
-          bubbles: true,
-          cancelable: true,
-          inputType: "insertText",
-          data: text,
-        }));
-        element.dispatchEvent(new InputEvent("input", {
-          bubbles: true,
-          cancelable: true,
-          inputType: "insertText",
-          data: text,
-        }));
-        element.dispatchEvent(new Event("input", { bubbles: true }));
-        element.dispatchEvent(new Event("change", { bubbles: true }));
-      } catch (e) {}
 
       return true;
     },
