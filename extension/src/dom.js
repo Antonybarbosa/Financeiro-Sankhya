@@ -191,15 +191,43 @@
       try {
         const titleSelectors = window.WhatsAppSelectors.activeChatHeaderTitle;
         let titleText = "";
+        
+        // 1. Tentar encontrar elemento com título válido que não seja subtítulo (ex: "Mensagens para mim", "online", "visto por último")
         for (const sel of titleSelectors) {
-          const el = document.querySelector(sel);
-          if (el) {
-            titleText = el.getAttribute("title") || el.innerText || "";
-            if (titleText) break;
+          const elements = document.querySelectorAll(sel);
+          for (const el of elements) {
+            const txt = (el.getAttribute("title") || el.innerText || "").trim();
+            // Ignorar textos genéricos ou de status do WhatsApp
+            if (
+              txt &&
+              !txt.toLowerCase().includes("mensagens para mim") &&
+              !txt.toLowerCase().includes("online") &&
+              !txt.toLowerCase().includes("visto por último") &&
+              !txt.toLowerCase().includes("digitando") &&
+              !txt.toLowerCase().includes("clique aqui para")
+            ) {
+              titleText = txt;
+              break;
+            }
+          }
+          if (titleText) break;
+        }
+
+        // 2. Se ainda assim não encontrou pelo seletor filtrado, tenta o primeiro span do header
+        if (!titleText) {
+          const headerEl = document.querySelector("#main header div[role=\"button\"]");
+          if (headerEl) {
+            const firstSpan = headerEl.querySelector("span[title]");
+            if (firstSpan) {
+              titleText = firstSpan.getAttribute("title") || firstSpan.innerText || "";
+            }
           }
         }
 
-        let digitsOnly = titleText.replace(/\D/g, "");
+        // Se o título contiver "(você)", remove "(você)" para extrair o telefone puro
+        let cleanText = titleText.replace(/\(você\)/gi, "").replace(/\(you\)/gi, "").trim();
+
+        let digitsOnly = cleanText.replace(/\D/g, "");
         // Se começar com DDI 55 (Brasil) e tiver 12 ou 13 dígitos (55 + DDD + 8 ou 9 dígitos), remove o 55
         if (digitsOnly.startsWith("55") && (digitsOnly.length === 12 || digitsOnly.length === 13)) {
           digitsOnly = digitsOnly.slice(2);
@@ -208,7 +236,7 @@
         const phone = digitsOnly.length >= 8 ? digitsOnly : null;
 
         return {
-          name: titleText,
+          name: cleanText || titleText,
           phone: phone,
           isPhone: !!phone,
         };
