@@ -161,6 +161,7 @@ export function SankhyaCustomerContextPanel({
 
   // Referência do último contato que provocou troca de aba para evitar re-gatilho automático
   const lastSwitchedContactRef = useRef<string | null>(null);
+  const isInitialMountRef = useRef<boolean>(true);
 
   // Ação ao selecionar um cliente da fila (abre conversa no WhatsApp Web e carrega títulos)
   const handleSelectCustomer = (
@@ -169,6 +170,7 @@ export function SankhyaCustomerContextPanel({
     partnerName?: string,
     shouldOpenWhatsApp = true
   ) => {
+    isInitialMountRef.current = false;
     lastSwitchedContactRef.current = phone || partnerName || null;
     openWhatsAppWithContact(phone || '', partnerId, partnerName);
     setActiveTab('atendimento');
@@ -187,6 +189,13 @@ export function SankhyaCustomerContextPanel({
 
     if (incomingDigits.startsWith('55') && (incomingDigits.length === 12 || incomingDigits.length === 13)) {
       incomingDigits = incomingDigits.slice(2);
+    }
+
+    // No carregamento inicial da página, registra o contato sem forçar a troca da aba Fila para Atendimento
+    if (isInitialMountRef.current) {
+      isInitialMountRef.current = false;
+      lastSwitchedContactRef.current = activePhoneOrName;
+      return;
     }
 
     if (activePhoneOrName !== lastSwitchedContactRef.current) {

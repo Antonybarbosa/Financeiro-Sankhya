@@ -514,14 +514,19 @@
           if (!txt || typeof txt !== "string") return true;
           const low = txt.toLowerCase().trim();
           return (
+            low === "você" ||
+            low === "you" ||
             low.includes("mensagens para mim") ||
+            low.includes("mensagens para você") ||
+            low.includes("message yourself") ||
             low.includes("online") ||
             low.includes("visto por último") ||
             low.includes("digitando") ||
             low.includes("clique aqui para") ||
             low.includes("clique para mostrar") ||
             low.includes("dados do contato") ||
-            low.includes("dados do grupo")
+            low.includes("dados do grupo") ||
+            low.includes("mensagens temporárias")
           );
         };
 
