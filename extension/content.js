@@ -95,11 +95,27 @@
     }
 
     // Escuta cliques do usuário na lista de chats ou na tela para extração imediata
-    document.addEventListener("click", () => {
-      setTimeout(checkAndNotifyChat, 100);
-      setTimeout(checkAndNotifyChat, 400);
-      setTimeout(checkAndNotifyChat, 800);
-      setTimeout(checkAndNotifyChat, 1400);
+    document.addEventListener("click", (e) => {
+      // Se o clique for no botão de fechar a gaveta (X ou Fechar), não dispara verificação
+      const target = e.target;
+      if (
+        target &&
+        (target.closest("button[aria-label*='Fechar' i]") ||
+         target.closest("button[aria-label*='Close' i]") ||
+         target.closest("div[role='button'][aria-label*='Fechar' i]") ||
+         target.closest("div[role='button'][aria-label*='Close' i]") ||
+         target.closest("[data-icon='x']") ||
+         target.closest("[data-icon='x-alt']") ||
+         target.closest("[data-icon='close']") ||
+         target.closest("[data-testid='btn-closer']") ||
+         target.closest("[data-testid='x']"))
+      ) {
+        return;
+      }
+
+      setTimeout(checkAndNotifyChat, 150);
+      setTimeout(checkAndNotifyChat, 600);
+      setTimeout(checkAndNotifyChat, 1200);
     }, true);
 
     // Apenas Heartbeat a cada 2000ms para indicar que a extensão está conectada
