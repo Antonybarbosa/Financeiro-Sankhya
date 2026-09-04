@@ -94,7 +94,7 @@
       return { found: true, target };
     },
 
-    // 4. Abrir conversa por telefone ou nome (Pesquisa UI com fallback SPA)
+    // 4. Abrir conversa por telefone ou nome (Link SPA Direto com fallback UI)
     openChat: async function (payload) {
       const { contact, phone, message } = payload || {};
       const targetPhone = phone || (contact && String(contact).replace(/\D/g, "").length >= 8 ? contact : null);
@@ -104,13 +104,13 @@
         throw new Error("Telefone ou contato não informado.");
       }
 
-      console.log("[WhatsApp Skill] Abrindo chat para:", target);
+      console.log("[WhatsApp Skill] Abrindo conversa para:", target);
 
       let opened = false;
 
-      // Se o chat ativo já for este contato e a caixa de mensagem estiver disponível, não precisa pesquisar
+      // Se o chat ativo já for este contato e a caixa de mensagem estiver disponível, não precisa navegar
       const currentChat = window.WhatsAppDOM.getActiveChatInfo();
-      const currentDigits = currentChat.phone || currentChat.name.replace(/\D/g, "");
+      const currentDigits = (currentChat.phone || currentChat.name || "").replace(/\D/g, "");
       const targetDigits = String(target).replace(/\D/g, "");
       const isAlreadyActive = targetDigits && currentDigits && (currentDigits.includes(targetDigits) || targetDigits.includes(currentDigits));
 
@@ -122,36 +122,40 @@
         }
       }
 
-      // Estratégia 1: Buscar diretamente pela caixa de pesquisa nativa do WhatsApp Web
+      // Estratégia 1 (Principal para telefone): Abrir conversa diretamente via Link SPA interno
+      if (!opened && targetPhone) {
+        const digits = String(targetPhone).replace(/\D/g, "");
+        const fullPhone = digits.length <= 11 && !digits.startsWith("55") ? "55" + digits : digits;
+
+        try {
+          console.log("[WhatsApp Skill] Abrindo chat diretamente via SPA link para:", fullPhone);
+          let link = document.getElementById("sankhya-skill-link");
+          if (!link) {
+            link = document.createElement("a");
+            link.id = "sankhya-skill-link";
+            link.style.display = "none";
+            document.body.appendChild(link);
+          }
+          const encodedText = message ? `&text=${encodeURIComponent(message)}` : "";
+          link.href = `https://web.whatsapp.com/send?phone=${fullPhone}${encodedText}`;
+          link.click();
+
+          await window.WhatsAppWait.waitForElement(window.WhatsAppSelectors.messageInput, 4000);
+          opened = true;
+          console.log("[WhatsApp Skill] Chat aberto com sucesso via link direto!");
+        } catch (errLink) {
+          console.log("[WhatsApp Skill] SPA link aguardando carregamento ou tentando busca nativa:", errLink.message);
+        }
+      }
+
+      // Estratégia 2 (Fallback ou busca textual por nome): Pesquisa nativa na UI do WhatsApp
       if (!opened) {
         try {
           await this.findContact(target);
           opened = true;
         } catch (errSearch) {
-          console.log("[WhatsApp Skill] Busca nativa por UI não concluiu, acionando fallback SPA link:", errSearch.message);
+          console.warn("[WhatsApp Skill] Busca nativa também não concluiu:", errSearch.message);
         }
-      }
-
-      // Estratégia 2: Fallback via Deep-Link SPA se a busca direta não concluiu
-      if (!opened && targetPhone) {
-        const digits = String(targetPhone).replace(/\D/g, "");
-        const fullPhone = digits.length <= 11 && !digits.startsWith("55") ? "55" + digits : digits;
-
-        let link = document.getElementById("sankhya-skill-link");
-        if (!link) {
-          link = document.createElement("a");
-          link.id = "sankhya-skill-link";
-          link.style.display = "none";
-          document.body.appendChild(link);
-        }
-        const encodedText = message ? `&text=${encodeURIComponent(message)}` : "";
-        link.href = `https://web.whatsapp.com/send?phone=${fullPhone}${encodedText}`;
-        link.click();
-
-        try {
-          await window.WhatsAppWait.waitForElement(window.WhatsAppSelectors.messageInput, 5000);
-          opened = true;
-        } catch (e) {}
       }
 
       // Se uma mensagem foi informada, aguarda e envia
