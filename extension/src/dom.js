@@ -339,9 +339,17 @@
 
         const isSelfOrInvalid = (p) => {
           if (!p) return true;
-          if (selfPhone && p === selfPhone) return true;
-          // Se for o mesmo número do usuário conectado ou tiver menos de 8 dígitos
-          if (selfPhone && (p.endsWith(selfPhone.slice(-8)) || selfPhone.endsWith(p.slice(-8)))) return true;
+          const cleanP = String(p).replace(/\D/g, "");
+          if (cleanP.length < 8) return true;
+          
+          // Bloqueio estrito do número do próprio operador (Antony Barbosa / 8198705664)
+          if (cleanP.endsWith("98705664") || cleanP.endsWith("8705664") || cleanP.includes("98705664")) {
+            return true;
+          }
+
+          if (selfPhone && (cleanP === selfPhone || cleanP.endsWith(selfPhone.slice(-8)) || selfPhone.endsWith(cleanP.slice(-8)))) {
+            return true;
+          }
           return false;
         };
 
@@ -389,7 +397,7 @@
           } catch (e) {}
         }
 
-        // ESTRATÉGIA 1: Objeto interno Webpack / Store do WhatsApp Web (Mais confiável e rápido)
+        // ESTRATÉGIA 1: Objeto interno Webpack / Store do WhatsApp Web
         if (!phone) {
           try {
             const store = window.WhatsAppStore || window.Store;
@@ -421,125 +429,7 @@
           } catch (e) {}
         }
 
-        // ESTRATÉGIA 2: Varredura de atributos DOM estritamente nos nós do CONTATO (#side ativo e #main header)
-        if (!phone) {
-          try {
-            const elementsToScan = [
-              ...document.querySelectorAll("#side [aria-selected='true'] *"),
-              ...document.querySelectorAll("#side [aria-selected='true']"),
-              ...document.querySelectorAll("#main header *"),
-            ];
-
-            for (const el of elementsToScan) {
-              if (el.attributes) {
-                for (let i = 0; i < el.attributes.length; i++) {
-                  const attrVal = el.attributes[i].value;
-                  if (attrVal && typeof attrVal === "string") {
-                    const cleaned = extractJidDigits(attrVal);
-                    if (cleaned && !isSelfOrInvalid(cleaned)) {
-                      phone = cleaned;
-                      console.log("[WhatsApp Skill] Telefone extraído via atributo DOM (" + el.attributes[i].name + "):", phone);
-                      break;
-                    }
-                  }
-                }
-              }
-              if (phone) break;
-            }
-          } catch (e) {}
-        }
-
-        // ESTRATÉGIA 3: Deep Scan na Árvore React Fiber estritamente nos nós do CONTATO
-        if (!phone) {
-          try {
-            const checkObjectForPhone = (obj, depth = 0, seen = new Set()) => {
-              if (!obj || depth > 5 || typeof obj !== "object" || seen.has(obj)) return null;
-              seen.add(obj);
-
-              if (typeof obj._serialized === "string" && !obj._serialized.includes("@g.us")) {
-                const m = obj._serialized.match(/(\d{10,13})@c\.us/);
-                if (m && m[1]) {
-                  const c = this.cleanPhoneNumber(m[1]);
-                  if (c && !isSelfOrInvalid(c)) return c;
-                }
-              }
-              if (typeof obj.user === "string" && /^\d{10,13}$/.test(obj.user)) {
-                const c = this.cleanPhoneNumber(obj.user);
-                if (c && !isSelfOrInvalid(c)) return c;
-              }
-              if (typeof obj.jid === "string" && !obj.jid.includes("@g.us")) {
-                const m = obj.jid.match(/(\d{10,13})@c\.us/);
-                if (m && m[1]) {
-                  const c = this.cleanPhoneNumber(m[1]);
-                  if (c && !isSelfOrInvalid(c)) return c;
-                }
-              }
-              if (typeof obj.phoneNumber === "string") {
-                const c = this.cleanPhoneNumber(obj.phoneNumber);
-                if (c && !isSelfOrInvalid(c)) return c;
-              }
-
-              for (const k in obj) {
-                if (["chat", "contact", "activeChat", "id", "item", "user", "props", "data", "model"].includes(k)) {
-                  const res = checkObjectForPhone(obj[k], depth + 1, seen);
-                  if (res) return res;
-                }
-              }
-              return null;
-            };
-
-            const scanFiberUpAndDown = (fiber) => {
-              if (!fiber) return null;
-              const visited = new Set();
-              const queue = [fiber];
-              let count = 0;
-
-              while (queue.length > 0 && count < 150) {
-                count++;
-                const node = queue.shift();
-                if (!node || visited.has(node)) continue;
-                visited.add(node);
-
-                if (node.memoizedProps && typeof node.memoizedProps === "object") {
-                  const found = checkObjectForPhone(node.memoizedProps);
-                  if (found) return found;
-                }
-                if (node.memoizedState && typeof node.memoizedState === "object") {
-                  const found = checkObjectForPhone(node.memoizedState);
-                  if (found) return found;
-                }
-
-                if (node.return && !visited.has(node.return)) queue.push(node.return);
-                if (node.child && !visited.has(node.child)) queue.push(node.child);
-                if (node.sibling && !visited.has(node.sibling)) queue.push(node.sibling);
-              }
-              return null;
-            };
-
-            const rootProbeElements = [
-              document.querySelector("#main header div[role='button']"),
-              document.querySelector("#side [aria-selected='true']"),
-            ].filter(Boolean);
-
-            for (const el of rootProbeElements) {
-              for (const prop in el) {
-                if (prop.startsWith("__reactFiber$") || prop.startsWith("__reactInternalInstance$") || prop.startsWith("__reactProps$")) {
-                  const found = scanFiberUpAndDown(el[prop]);
-                  if (found && !isSelfOrInvalid(found)) {
-                    phone = found;
-                    console.log("[WhatsApp Skill] Telefone extraído via React Fiber:", phone);
-                    break;
-                  }
-                }
-              }
-              if (phone) break;
-            }
-          } catch (e) {
-            console.warn("[WhatsApp Skill] Erro no scan React Fiber:", e);
-          }
-        }
-
-        // ESTRATÉGIA 4: Inspecionar o painel lateral direito "Dados do contato" ou seções abertas
+        // ESTRATÉGIA 2: Inspecionar o painel lateral direito "Dados do contato" ou seções abertas
         if (!phone) {
           try {
             const allTextNodes = document.querySelectorAll("#app section span, #app section div, #app [role='region'] span, #app [role='region'] div, div[tabindex='-1'] span");
