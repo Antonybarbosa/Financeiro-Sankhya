@@ -68,13 +68,15 @@ Quando o usuário fecha a gaveta de dados do contato:
 - A extensão verifica se o título do chat ativo ainda é o mesmo e reutiliza o telefone retido na memória.
 - **Resultado**: O cliente permanece carregado na aba de atendimento do Sankhya sem recarregar nem buscar dados vazios.
 
-### 🔹 3. Desacoplamento da Fila de Cobrança (`SankhyaCustomerContextPanel.tsx`)
+### 🔹 3. Desacoplamento da Fila de Cobrança & Gestão de Estado (`SankhyaCustomerContextPanel.tsx`)
 - **Remoção do `matchNome`**: O sistema não tenta mais adivinhar parceiros na fila por aproximação de nome quando o WhatsApp não fornece número.
 - **Regra de Atualização da Aba Atendimento**:
   1. A aba "Atendimento" **SÓ** é atualizada se:
      - O operador clicar manualmente em um card da lista/fila de cobrança; **OU**
      - O operador abrir um contato com telefone válido ($\ge 8$ dígitos) no WhatsApp Web.
   2. Nenhuma ação de fechar gavetas, recarregar tela ou navegar entre abas limpa o cliente atualmente carregado.
+- **Comportamento em Buscas sem Correspondência ("Não Localizado")**:
+  - Quando um novo contato/telefone é consultado e **não possui cadastro** no Sankhya (`cliente: null` retornado da API), o estado do cliente anterior é devidamente resetado (`setCliente(null)`, `titulos: []`), exibindo o alerta visual informativo de *"Cliente não localizado no Sankhya"* com o número pesquisado, diagnóstico SQL e atalho para retornar à fila.
 
 ### 🔹 4. Estabilização do Foco no Campo de Busca (`WhatsAppEmbeddedTab.tsx`)
 - **Causa Raiz**: O polling de heartbeat da extensão rodava a cada 1000ms chamando `setExtensionDetected(true)` incondicionalmente, forçando re-renderizações que recriavam o nó `<input>` no DOM e cancelavam o foco.
