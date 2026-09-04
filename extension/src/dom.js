@@ -158,51 +158,16 @@
       return this.simulateHumanTyping(element, text);
     },
 
-    // 3. Simulação Humana de Clique Físico com Coordenadas Reais de Tela (React 18)
+    // 3. Simulação de Clique Único no elemento
     simulateHumanClick: function (element) {
       if (!element) return false;
 
-      const rect = element.getBoundingClientRect();
-      const clientX = rect.left + rect.width / 2;
-      const clientY = rect.top + rect.height / 2;
-
-      const mouseOpts = {
-        bubbles: true,
-        cancelable: true,
-        view: window,
-        clientX,
-        clientY,
-        screenX: clientX,
-        screenY: clientY,
-        button: 0,
-        buttons: 1,
-      };
-
-      const pointerOpts = {
-        ...mouseOpts,
-        pointerId: 1,
-        pointerType: "mouse",
-        isPrimary: true,
-        width: 1,
-        height: 1,
-        pressure: 0.5,
-      };
-
-      // Cadeia física: pointerover ⟶ mouseover ⟶ pointerdown ⟶ mousedown ⟶ focus ⟶ pointerup ⟶ mouseup ⟶ click
       try {
-        element.dispatchEvent(new PointerEvent("pointerover", pointerOpts));
-        element.dispatchEvent(new MouseEvent("mouseover", mouseOpts));
-        element.dispatchEvent(new PointerEvent("pointerdown", pointerOpts));
-        element.dispatchEvent(new MouseEvent("mousedown", mouseOpts));
-        element.focus();
-        element.dispatchEvent(new PointerEvent("pointerup", pointerOpts));
-        element.dispatchEvent(new MouseEvent("mouseup", mouseOpts));
-        element.dispatchEvent(new MouseEvent("click", mouseOpts));
-        element.click();
-        console.log("[WhatsApp Skill] simulateHumanClick executado com sucesso nas coordenadas:", clientX, clientY);
+        const target = element.closest("button") || element;
+        target.focus();
+        target.click();
         return true;
       } catch (e) {
-        console.warn("[WhatsApp Skill] Erro em simulateHumanClick:", e);
         try {
           element.click();
           return true;
@@ -212,31 +177,44 @@
       }
     },
 
-    // 4. Executa o clique de envio físico ou tecla Enter
+    // 4. Executa o clique de envio físico ou tecla Enter uma única vez
     clickSendOrPressEnter: function (messageInput) {
-      // 1. Procurar botão de enviar no DOM
-      const sendBtnSelectors = window.WhatsAppSelectors.sendButton;
+      // 1. Procurar botão de enviar no DOM (#main footer)
+      const sendBtnSelectors = [
+        '#main footer button[aria-label*="Enviar" i]',
+        '#main footer button[aria-label*="Send" i]',
+        '#main footer [data-testid="send"]',
+        '#main footer [data-testid="compose-btn-send"]',
+        '#main footer span[data-icon="send"]',
+        '#main footer span[data-icon="send-v2"]',
+      ];
+
       for (const sel of sendBtnSelectors) {
         const btn = document.querySelector(sel);
         if (btn) {
           const target = btn.closest("button") || btn;
-          const clicked = this.simulateHumanClick(target);
-          if (clicked) {
-            console.log("[WhatsApp Skill] Botão de enviar acionado via simulateHumanClick:", sel);
-            return true;
-          }
+          target.focus();
+          target.click();
+          console.log("[WhatsApp Skill] Botão de enviar acionado com sucesso (único):", sel);
+          return true;
         }
       }
 
-      // 2. Disparar eventos da tecla Enter no input como garantia
+      // 2. Disparar tecla Enter no input como fallback
       if (messageInput) {
         messageInput.focus();
         try {
-          const opts = { key: "Enter", code: "Enter", keyCode: 13, which: 13, charCode: 13, bubbles: true, cancelable: true };
-          messageInput.dispatchEvent(new KeyboardEvent("keydown", opts));
-          messageInput.dispatchEvent(new KeyboardEvent("keypress", opts));
-          messageInput.dispatchEvent(new KeyboardEvent("keyup", opts));
-          console.log("[WhatsApp Skill] Eventos de Enter disparados no input.");
+          messageInput.dispatchEvent(
+            new KeyboardEvent("keydown", {
+              key: "Enter",
+              code: "Enter",
+              keyCode: 13,
+              which: 13,
+              bubbles: true,
+              cancelable: true,
+            })
+          );
+          console.log("[WhatsApp Skill] Tecla Enter disparada no input.");
           return true;
         } catch (e) {}
       }
