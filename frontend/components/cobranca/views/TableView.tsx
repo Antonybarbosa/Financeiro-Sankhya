@@ -198,12 +198,12 @@ export function TableView({ apenasVencidos }: TableViewProps) {
         {/* Search */}
         <div className="flex items-center justify-between gap-3">
           <div className="relative max-w-md flex-1">
-            <Search className="absolute left-3 top-2.5 h-4 w-4 text-gray-400" />
+            <Search className="absolute left-3 top-2.5 h-4 w-4 text-gray-400 pointer-events-none select-none" />
             <Input
               placeholder="Buscar parceiro..."
               value={buscaInput}
               onChange={(e) => setBuscaInput(e.target.value)}
-              className="pl-9"
+              className="pl-9 cursor-text select-text pointer-events-auto"
             />
           </div>
           <span className="text-xs text-gray-400">

@@ -463,10 +463,10 @@ export function SankhyaCustomerContextPanel({
       {activeTab === 'fila' && (
         <div className="flex-1 flex flex-col min-h-0 bg-gray-50">
           {/* Barra de Filtros & Busca */}
-          <div className="p-3 bg-white border-b border-gray-200 space-y-2.5 shrink-0">
+          <div className="p-3 bg-white border-b border-gray-200 space-y-2.5 shrink-0" onClick={(e) => e.stopPropagation()}>
             {/* Campo de Busca */}
-            <div className="relative flex items-center">
-              <Search className="absolute left-2.5 h-3.5 w-3.5 text-gray-400 pointer-events-none z-10" />
+            <div className="relative flex items-center w-full">
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400 pointer-events-none select-none z-10" />
               <input
                 id="fila-busca-cliente-input"
                 name="filaBusca"
@@ -474,15 +474,20 @@ export function SankhyaCustomerContextPanel({
                 placeholder="Buscar cliente, CNPJ, telefone..."
                 value={filaBusca}
                 onChange={(e) => setFilaBusca(e.target.value)}
+                onClick={(e) => e.stopPropagation()}
+                onFocus={(e) => e.stopPropagation()}
                 autoComplete="off"
                 spellCheck="false"
-                className="w-full rounded-lg border border-gray-300 pl-8 pr-8 py-1.5 text-xs text-gray-900 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 focus:outline-none bg-white relative z-0"
+                className="w-full rounded-lg border border-gray-300 pl-8 pr-8 py-1.5 text-xs text-gray-900 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 focus:outline-none bg-white cursor-text select-text pointer-events-auto shadow-2xs"
               />
               {filaBusca && (
                 <button
                   type="button"
-                  onClick={() => setFilaBusca('')}
-                  className="absolute right-2 text-gray-400 hover:text-gray-600 p-0.5 rounded transition-colors z-10"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setFilaBusca('');
+                  }}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 p-0.5 rounded transition-colors z-10 cursor-pointer"
                   title="Limpar busca"
                 >
                   <X className="h-3.5 w-3.5" />

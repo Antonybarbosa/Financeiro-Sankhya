@@ -75,7 +75,7 @@ export function MasterDetailView() {
         {/* Search + filters */}
         <div className="border-b border-gray-200 p-3">
           <div className="relative">
-            <Search className="absolute left-3 top-2.5 h-4 w-4 text-gray-400" />
+            <Search className="absolute left-3 top-2.5 h-4 w-4 text-gray-400 pointer-events-none select-none" />
             <Input
               placeholder="Buscar por nome do parceiro..."
               value={buscaInput}
@@ -83,7 +83,7 @@ export function MasterDetailView() {
                 setBuscaInput(e.target.value);
                 setLimit(PAGE_SIZE);
               }}
-              className="pl-9"
+              className="pl-9 cursor-text select-text pointer-events-auto"
             />
           </div>
           <div className="mt-2 flex items-center justify-between text-xs text-gray-400">
