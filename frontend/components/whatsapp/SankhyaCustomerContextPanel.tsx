@@ -237,7 +237,18 @@ export function SankhyaCustomerContextPanel({
     if (loadedPartnerIdRef.current && activePartnerId && loadedPartnerIdRef.current === activePartnerId) {
       return;
     }
-    if (loadedPhoneRef.current && validPhone) {
+    if (cliente) {
+      if (activePartnerId && cliente.codParc === activePartnerId) {
+        return;
+      }
+      if (validPhone) {
+        const last8Loaded = (loadedPhoneRef.current || cleanPhoneDigits(cliente.telefone)).slice(-8);
+        const last8Search = validPhone.slice(-8);
+        if (last8Loaded && last8Search && last8Loaded === last8Search) {
+          return;
+        }
+      }
+    } else if (loadedPhoneRef.current && validPhone) {
       const last8Loaded = loadedPhoneRef.current.slice(-8);
       const last8Search = validPhone.slice(-8);
       if (last8Loaded && last8Search && last8Loaded === last8Search) {

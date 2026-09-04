@@ -52,15 +52,15 @@ export function WhatsAppEmbeddedTab() {
 
           // Se for exatamente o mesmo contato já ativo (últimos 8 dígitos iguais), ignora e não recarrega
           if (
-            cleanPhone === currentActive ||
-            (currentDigits.length >= 8 && currentDigits.endsWith(cleanPhone.slice(-8))) ||
-            (cleanPhone.length >= 8 && cleanPhone.endsWith(currentDigits.slice(-8)))
+            currentDigits.length >= 8 &&
+            cleanPhone.length >= 8 &&
+            (currentDigits.endsWith(cleanPhone.slice(-8)) || cleanPhone.endsWith(currentDigits.slice(-8)))
           ) {
             return;
           }
 
-          // Atualiza a store global com o novo contato genuíno
-          useWhatsAppStore.getState().openWhatsAppWithContact(cleanPhone, undefined, info.name);
+          // Atualiza a store global com o novo contato preservando o parceiroId se existente
+          useWhatsAppStore.getState().openWhatsAppWithContact(cleanPhone, state.activePartnerId || undefined, info.name);
           setPanelOpen(true);
         }
       }

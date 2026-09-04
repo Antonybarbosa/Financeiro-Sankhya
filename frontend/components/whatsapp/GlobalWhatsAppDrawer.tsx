@@ -58,14 +58,14 @@ export function GlobalWhatsAppDrawer() {
         const currentDigits = currentActive.replace(/\D/g, '');
 
         if (
-          cleanPhone === currentActive ||
-          (currentDigits.length >= 8 && currentDigits.endsWith(cleanPhone.slice(-8))) ||
-          (cleanPhone.length >= 8 && cleanPhone.endsWith(currentDigits.slice(-8)))
+          currentDigits.length >= 8 &&
+          cleanPhone.length >= 8 &&
+          (currentDigits.endsWith(cleanPhone.slice(-8)) || cleanPhone.endsWith(currentDigits.slice(-8)))
         ) {
           return;
         }
 
-        openWhatsAppWithContact(cleanPhone, undefined, info.name);
+        openWhatsAppWithContact(cleanPhone, state.activePartnerId || undefined, info.name);
       }
     });
 
