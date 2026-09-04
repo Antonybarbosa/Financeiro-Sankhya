@@ -173,28 +173,29 @@ class WhatsAppBridge {
         payload: cmd.payload,
       });
 
-      // Disparar para o iframeRef específico
+      let dispatched = false;
+
+      // 1. Se um iframeRef específico foi fornecido, envia diretamente para ele
       if (iframeRef && iframeRef.contentWindow) {
         try {
           iframeRef.contentWindow.postMessage(payload, '*');
+          dispatched = true;
         } catch (e) {}
       }
 
-      // Broadcast para todos os iframes presentes na página (incluindo o WhatsApp Web)
-      if (typeof document !== 'undefined') {
+      // 2. Se não foi despachado via ref, busca o iframe do WhatsApp Web na tela
+      if (!dispatched && typeof document !== 'undefined') {
         const iframes = document.querySelectorAll('iframe');
-        iframes.forEach((ifr) => {
+        for (let i = 0; i < iframes.length; i++) {
+          const ifr = iframes[i];
           try {
-            ifr.contentWindow?.postMessage(payload, '*');
+            if (ifr.contentWindow) {
+              ifr.contentWindow.postMessage(payload, '*');
+              dispatched = true;
+              break;
+            }
           } catch (e) {}
-        });
-      }
-
-      // Broadcast na janela principal
-      if (typeof window !== 'undefined') {
-        try {
-          window.postMessage(payload, '*');
-        } catch (e) {}
+        }
       }
     });
   }

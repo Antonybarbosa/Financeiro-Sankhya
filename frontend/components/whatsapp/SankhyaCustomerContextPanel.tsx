@@ -94,7 +94,7 @@ export function SankhyaCustomerContextPanel({
   const [totalEmAberto, setTotalEmAberto] = useState(0);
 
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
-  const { templates, templateAtivoId } = useWhatsAppTemplateStore();
+  const { templates, templateAtivoId, setTemplateAtivoId } = useWhatsAppTemplateStore();
   const { activePartnerId, openWhatsAppWithContact } = useWhatsAppStore();
   const { data: atendimentosData, isLoading: loadingFila, refetch: refetchFila } = useAtendimentosHoje();
 
@@ -139,8 +139,11 @@ export function SankhyaCustomerContextPanel({
   const [renegociarPartner, setRenegociarPartner] = useState<{ id: number; nome: string } | null>(null);
   const [debugBusca, setDebugBusca] = useState<any>(null);
 
-  // Lista da Fila de Cobrança bruta
-  const rawFilaItems = useMemo(() => atendimentosData?.items || [], [atendimentosData]);
+  // Lista da Fila de Cobrança (Apenas contatos pendentes de atendimento)
+  const rawFilaItems = useMemo(
+    () => (atendimentosData?.items || []).filter((i) => i.pendente !== false),
+    [atendimentosData]
+  );
 
   // Contagem Total
   const countTodos = rawFilaItems.length;
@@ -438,6 +441,25 @@ export function SankhyaCustomerContextPanel({
     )}\nPor favor, envie o comprovante por aqui. Obrigado!`;
     whatsappBridge.sendTextToWhatsApp(textoPix, iframeRef);
     toast.success('PIX Enviado!', 'Dados do PIX inseridos no chat do WhatsApp.');
+  };
+
+  const handleConcluirSemMensagem = async () => {
+    if (!cliente) return;
+    setSending(true);
+    try {
+      await api.post('/api/whatsapp/registrar-historico', {
+        parceiroId: cliente.codParc,
+        mensagem: '[ATENDIMENTO FINALIZADO DIRETAMENTE PELO OPERADOR]',
+      });
+      await refetchFila();
+      toast.success('Atendimento Concluído!', 'Atendimento encerrado com sucesso no Sankhya.');
+      setActiveTab('fila');
+    } catch (err: any) {
+      console.error('Erro ao encerrar atendimento:', err);
+      toast.error('Erro ao encerrar', err?.response?.data?.message || 'Falha ao encerrar atendimento.');
+    } finally {
+      setSending(false);
+    }
   };
 
   return (
@@ -1106,32 +1128,54 @@ export function SankhyaCustomerContextPanel({
                   )}
                 </div>
 
-                {/* 4. AÇÕES RÁPIDAS & EDITOR DE MENSAGEM WHATSAPP */}
-                <div className="space-y-2 pt-2 border-t border-gray-100">
-                  <div className="grid grid-cols-2 gap-2">
-                    <button
-                      type="button"
-                      onClick={handleEnviarPix}
-                      className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-teal-200 bg-teal-50 px-2.5 py-1.5 text-[11px] font-bold text-teal-800 hover:bg-teal-100 transition-colors"
-                    >
-                      <QrCode className="h-3.5 w-3.5 text-teal-600" />
-                      Enviar PIX
-                    </button>
+                {/* 4. AÇÕES RÁPIDAS & SELETOR DE MODELO & EDITOR DE MENSAGEM */}
+                <div className="space-y-2.5 pt-2.5 border-t border-gray-100">
+                  {/* Seletor do Modelo de Mensagem Ativo */}
+                  <div className="space-y-1">
+                    <div className="flex items-center justify-between text-[11px] font-bold text-gray-700">
+                      <span className="flex items-center gap-1">
+                        <Sparkles className="h-3.5 w-3.5 text-emerald-600" />
+                        Modelo de Mensagem:
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setConfigModalTab('templates');
+                          setConfigModalOpen(true);
+                        }}
+                        className="text-[10px] font-bold text-emerald-700 hover:text-emerald-800 hover:underline flex items-center gap-0.5 cursor-pointer"
+                        title="Configurar e criar novos modelos"
+                      >
+                        <Settings className="h-3 w-3" />
+                        Gerenciar Modelos
+                      </button>
+                    </div>
 
-                    <button
-                      type="button"
-                      onClick={() => setConfigModalOpen(true)}
-                      className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-gray-200 bg-gray-50 px-2.5 py-1.5 text-[11px] font-bold text-gray-700 hover:bg-gray-100 transition-colors"
-                    >
-                      <Sparkles className="h-3.5 w-3.5 text-gray-500" />
-                      Modelos ({templates.length})
-                    </button>
+                    <div className="relative">
+                      <select
+                        id="seletor-modelo-mensagem-dropdown"
+                        value={templateAtivoId}
+                        onChange={(e) => setTemplateAtivoId(e.target.value)}
+                        className="w-full rounded-lg border border-gray-300 bg-white px-2.5 py-1.5 text-xs font-bold text-gray-800 hover:border-emerald-500 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 focus:outline-none shadow-2xs cursor-pointer"
+                      >
+                        {templates.map((tpl) => (
+                          <option key={tpl.id} value={tpl.id}>
+                            {tpl.titulo}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
                   </div>
 
-                  <div className="space-y-2">
-                    <label className="block text-[11px] font-bold text-gray-700">
-                      Mensagem para o WhatsApp:
-                    </label>
+                  {/* Editor da Mensagem Interpolada com os Títulos */}
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between text-[11px] font-bold text-gray-700">
+                      <span>Texto da Mensagem a Enviar:</span>
+                      <span className="text-[10px] font-normal text-gray-400">
+                        {mensagemEditada.length} caracteres
+                      </span>
+                    </div>
+
                     <textarea
                       rows={5}
                       value={mensagemEditada}
@@ -1139,16 +1183,42 @@ export function SankhyaCustomerContextPanel({
                       className="w-full rounded-lg border border-gray-300 p-2.5 text-xs font-sans text-gray-900 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 focus:outline-none leading-relaxed shadow-2xs"
                       placeholder="A mensagem interpolada aparecerá aqui..."
                     />
+                  </div>
 
+                  {/* Ações de Envio e Conclusão */}
+                  <div className="space-y-1.5 pt-1">
                     <button
                       type="button"
                       onClick={handleEnviarMensagem}
                       disabled={sending || !mensagemEditada.trim()}
-                      className="w-full inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 py-2.5 text-xs font-extrabold text-white shadow-md hover:bg-emerald-700 disabled:opacity-50 transition-all hover:scale-[1.01] active:scale-[0.99]"
+                      className="w-full inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 py-2.5 text-xs font-extrabold text-white shadow-md hover:bg-emerald-700 disabled:opacity-50 transition-all hover:scale-[1.01] active:scale-[0.99] cursor-pointer"
                     >
                       {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
                       Inserir & Enviar no WhatsApp
                     </button>
+
+                    <div className="grid grid-cols-2 gap-2">
+                      <button
+                        type="button"
+                        onClick={handleEnviarPix}
+                        className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-teal-200 bg-teal-50 px-2.5 py-1.5 text-[11px] font-bold text-teal-800 hover:bg-teal-100 transition-colors cursor-pointer shadow-2xs"
+                        title="Enviar chave PIX e valor total no chat"
+                      >
+                        <QrCode className="h-3.5 w-3.5 text-teal-600" />
+                        Enviar PIX
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={handleConcluirSemMensagem}
+                        disabled={sending}
+                        className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-gray-200 bg-gray-50 px-2.5 py-1.5 text-[11px] font-bold text-gray-700 hover:bg-emerald-50 hover:text-emerald-800 hover:border-emerald-300 transition-colors cursor-pointer shadow-2xs"
+                        title="Encerrar o atendimento deste cliente no Sankhya sem enviar mensagem"
+                      >
+                        <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
+                        Finalizar sem Envio
+                      </button>
+                    </div>
                   </div>
                 </div>
               </>
