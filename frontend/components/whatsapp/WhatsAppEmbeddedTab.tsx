@@ -63,9 +63,9 @@ export function WhatsAppEmbeddedTab() {
           return;
         }
 
-        // Priorizar número de telefone real SE for válido (10 ou 11 dígitos), senão usar o nome
+        // Usar ESTRITAMENTE o número de telefone (nunca o nome da agenda)
         let incomingClean = '';
-        const phoneDigits = (info.phone || '').replace(/\D/g, '');
+        const phoneDigits = (info.phone || info.phoneOrName || '').replace(/\D/g, '');
         const cleanPhone =
           phoneDigits.startsWith('55') && (phoneDigits.length === 12 || phoneDigits.length === 13)
             ? phoneDigits.slice(2)
@@ -73,13 +73,9 @@ export function WhatsAppEmbeddedTab() {
 
         if (cleanPhone.length === 10 || cleanPhone.length === 11) {
           incomingClean = cleanPhone;
-        } else if (info.name && info.name.trim()) {
-          incomingClean = info.name.trim();
-        } else {
-          incomingClean = (info.phoneOrName || '').trim();
         }
 
-        setActivePhoneOrName(incomingClean);
+        setActivePhoneOrName(incomingClean || null);
         // Se um contato for detectado, garante que o painel abra para o operador ver os títulos
         setPanelOpen(true);
       }

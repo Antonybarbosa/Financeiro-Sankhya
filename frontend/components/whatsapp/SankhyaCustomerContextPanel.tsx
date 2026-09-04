@@ -196,13 +196,13 @@ export function SankhyaCustomerContextPanel({
           itemTelDigits = itemTelDigits.slice(2);
         }
 
-        const matchNome = itemNome.includes(incoming) || incoming.includes(itemNome);
+        // Correspondência estrita por dígitos de telefone (sem comparar nome da agenda)
         const matchTel =
           incomingDigits.length >= 8 &&
           itemTelDigits.length >= 8 &&
           (itemTelDigits.endsWith(incomingDigits.slice(-8)) || incomingDigits.endsWith(itemTelDigits.slice(-8)));
 
-        return matchNome || matchTel;
+        return matchTel;
       });
 
       if (matchFila && matchFila.parceiroId && matchFila.parceiroId !== activePartnerId) {

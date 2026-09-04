@@ -41,24 +41,16 @@ export class WhatsAppController {
     const ultimosDigitos = temTelefoneValido ? apenasNumeros.slice(-8) : '';
     const nomeTermo = termo.replace(/'/g, "''").toUpperCase();
 
-    // Monta cláusula WHERE híbrida: por dígitos de telefone/celular OU por substring do nome
-    const condicoes: string[] = [];
-    if (temTelefoneValido) {
-      condicoes.push(`REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(PAR.TELEFONE, '-', ''), ' ', ''), '(', ''), ')', ''), '+', '') LIKE '%${ultimosDigitos}%'`);
-      condicoes.push(`REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(CTT.TELEFONE, '-', ''), ' ', ''), '(', ''), ')', ''), '+', '') LIKE '%${ultimosDigitos}%'`);
-      condicoes.push(`REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(CTT.CELULAR, '-', ''), ' ', ''), '(', ''), ')', ''), '+', '') LIKE '%${ultimosDigitos}%'`);
-    }
-
-    // Se o termo contiver letras (ou não for só dígitos), busca também por Nome e Razão Social
-    if (/[a-zA-Z]/.test(termo) && termo.length >= 3) {
-      condicoes.push(`UPPER(PAR.NOMEPARC) LIKE '%${nomeTermo}%'`);
-      condicoes.push(`UPPER(PAR.RAZAOSOCIAL) LIKE '%${nomeTermo}%'`);
-      condicoes.push(`UPPER(CTT.NOMECONTATO) LIKE '%${nomeTermo}%'`);
-    }
-
-    if (condicoes.length === 0) {
+    // Busca estritamente por dígitos de telefone ou celular
+    if (!temTelefoneValido) {
       return { encontrado: false, clientes: [], cliente: null };
     }
+
+    const condicoes: string[] = [
+      `REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(PAR.TELEFONE, '-', ''), ' ', ''), '(', ''), ')', ''), '+', '') LIKE '%${ultimosDigitos}%'`,
+      `REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(CTT.TELEFONE, '-', ''), ' ', ''), '(', ''), ')', ''), '+', '') LIKE '%${ultimosDigitos}%'`,
+      `REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(CTT.CELULAR, '-', ''), ' ', ''), '(', ''), ')', ''), '+', '') LIKE '%${ultimosDigitos}%'`,
+    ];
 
     const sql = `
       SELECT * FROM (
