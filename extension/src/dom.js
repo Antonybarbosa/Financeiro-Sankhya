@@ -616,19 +616,16 @@
 
         const chatKey = cleanText ? cleanText.toLowerCase() : "";
 
-        // Se encontrou o telefone agora, salva no cache e como o telefone ativo da conversa
+        // Se encontrou o telefone agora, salva no cache associado ao nome deste contato específico
         if (phone && !isSelfOrInvalid(phone)) {
-          window._whatsappCurrentActivePhone = phone;
           if (chatKey) {
             window._whatsappKnownChatPhones = window._whatsappKnownChatPhones || new Map();
             window._whatsappKnownChatPhones.set(chatKey, phone);
           }
         } else if (!phone) {
-          // Se a gaveta de dados foi fechada, recupera o telefone cacheado desta conversa
+          // Se a gaveta de dados foi fechada, recupera o telefone cacheado especificamente para este contato
           if (chatKey && window._whatsappKnownChatPhones && window._whatsappKnownChatPhones.has(chatKey)) {
             phone = window._whatsappKnownChatPhones.get(chatKey);
-          } else if (window._whatsappCurrentActivePhone && !isSelfOrInvalid(window._whatsappCurrentActivePhone)) {
-            phone = window._whatsappCurrentActivePhone;
           }
         }
 

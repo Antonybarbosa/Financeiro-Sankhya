@@ -54,6 +54,14 @@
       const currentPhone = current.phone || "";
       const currentName = current.name || "";
 
+      // Se mudou de conversa pelo nome, atualiza o nome e permite nova extração do telefone
+      if (currentName && currentName !== lastName) {
+        lastName = currentName;
+        if (!currentPhone) {
+          lastChatPhone = "";
+        }
+      }
+
       // Só dispara se houver um NOVO telefone de contato REAL detectado (mínimo 8 dígitos)
       if (currentPhone && currentPhone.length >= 8) {
         const lastDigits = (lastChatPhone || "").replace(/\D/g, "").slice(-8);
