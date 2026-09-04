@@ -233,12 +233,8 @@ export function SankhyaCustomerContextPanel({
   const lastFetchedKeyRef = useRef<string>('');
 
   useEffect(() => {
+    // Se não tiver chave selecionada, não dispara busca e não altera o cliente atual
     if (!activePhoneOrName && !activePartnerId) {
-      setCliente(null);
-      setClientesEncontrados([]);
-      setTitulos([]);
-      setTotalEmAberto(0);
-      lastFetchedKeyRef.current = '';
       return;
     }
 
@@ -254,18 +250,17 @@ export function SankhyaCustomerContextPanel({
       return;
     }
 
+    const phoneDigits = (activePhoneOrName || '').replace(/\D/g, '');
+    const validPhone = phoneDigits.length >= 8 ? activePhoneOrName : undefined;
+
+    // Se não tiver parceiroId E não for um telefone com pelo menos 8 dígitos, não dispara busca
+    if (!activePartnerId && !validPhone) {
+      return;
+    }
+
     lastFetchedKeyRef.current = currentKey;
 
     const fetchClienteData = async () => {
-      const phoneDigits = (activePhoneOrName || '').replace(/\D/g, '');
-      const validPhone = phoneDigits.length >= 8 ? activePhoneOrName : undefined;
-
-      // Se não tiver parceiroId E não for um telefone com pelo menos 8 dígitos, não dispara busca no Sankhya
-      // e mantém o cliente atualmente carregado na tela (não reseta nem ancora no anterior)
-      if (!activePartnerId && !validPhone) {
-        return;
-      }
-
       setLoading(true);
       try {
         const resp = await api.get('/api/whatsapp/titulos-por-telefone', {
@@ -285,12 +280,6 @@ export function SankhyaCustomerContextPanel({
 
           const ids = new Set<number>(listTitulos.map((t) => t.id));
           setSelectedIds(ids);
-        } else {
-          setCliente(null);
-          setClientesEncontrados([]);
-          setTitulos([]);
-          setTotalEmAberto(0);
-          setDebugBusca(resp.data);
         }
       } catch (err) {
         console.error('Erro ao buscar dados do cliente no Sankhya:', err);
@@ -300,7 +289,7 @@ export function SankhyaCustomerContextPanel({
     };
 
     fetchClienteData();
-  }, [activePhoneOrName, activePartnerId]);
+  }, [activePhoneOrName, activePartnerId, cliente]);
 
   // Template Selecionado
   const templateAtual = useMemo(() => {

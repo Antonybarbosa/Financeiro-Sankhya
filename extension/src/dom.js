@@ -593,13 +593,20 @@
 
         const chatKey = cleanText ? cleanText.toLowerCase() : "";
 
-        // Se encontrou o telefone, guarda no cache da sessão do chat ativo
-        if (phone && chatKey) {
-          window._whatsappKnownChatPhones = window._whatsappKnownChatPhones || new Map();
-          window._whatsappKnownChatPhones.set(chatKey, phone);
-        } else if (!phone && chatKey && window._whatsappKnownChatPhones && window._whatsappKnownChatPhones.has(chatKey)) {
-          // Se a gaveta de dados foi fechada, recupera o telefone cacheado deste mesmo contato
-          phone = window._whatsappKnownChatPhones.get(chatKey);
+        // Se encontrou o telefone agora, salva no cache e como o telefone ativo da conversa
+        if (phone && !isSelfOrInvalid(phone)) {
+          window._whatsappCurrentActivePhone = phone;
+          if (chatKey) {
+            window._whatsappKnownChatPhones = window._whatsappKnownChatPhones || new Map();
+            window._whatsappKnownChatPhones.set(chatKey, phone);
+          }
+        } else if (!phone) {
+          // Se a gaveta de dados foi fechada, recupera o telefone cacheado desta conversa
+          if (chatKey && window._whatsappKnownChatPhones && window._whatsappKnownChatPhones.has(chatKey)) {
+            phone = window._whatsappKnownChatPhones.get(chatKey);
+          } else if (window._whatsappCurrentActivePhone && !isSelfOrInvalid(window._whatsappCurrentActivePhone)) {
+            phone = window._whatsappCurrentActivePhone;
+          }
         }
 
         return {
