@@ -186,18 +186,76 @@
       return false;
     },
 
-    // 5. Extrai o telefone/nome da conversa ativa
+    // Helper para extrair e limpar telefone (remove 55 se aplicável)
+    cleanPhoneNumber: function (raw) {
+      if (!raw) return null;
+      let digits = String(raw).replace(/\D/g, "");
+      // Se tiver 55 no início e for 12 ou 13 dígitos, remove o 55
+      if (digits.startsWith("55") && (digits.length === 12 || digits.length === 13)) {
+        digits = digits.slice(2);
+      }
+      return digits.length >= 8 ? digits : null;
+    },
+
+    // 5. Extrai o telefone/nome da conversa ativa (busca telefone real mesmo com contato salvo)
     getActiveChatInfo: function () {
       try {
-        const titleSelectors = window.WhatsAppSelectors.activeChatHeaderTitle;
+        let phone = null;
         let titleText = "";
-        
-        // 1. Tentar encontrar elemento com título válido que não seja subtítulo (ex: "Mensagens para mim", "online", "visto por último")
+
+        // ESTRATÉGIA 1: Objeto interno React / Store do WhatsApp Web (se disponível no world: MAIN)
+        try {
+          if (window.Store && window.Store.Chat) {
+            const activeChat = window.Store.Chat.getActive ? window.Store.Chat.getActive() : null;
+            if (activeChat && activeChat.id) {
+              const jidUser = activeChat.id.user || (activeChat.id._serialized || "").split("@")[0];
+              if (jidUser && !activeChat.isGroup && !activeChat.id._serialized?.includes("@g.us")) {
+                phone = this.cleanPhoneNumber(jidUser);
+                titleText = activeChat.name || activeChat.formattedTitle || "";
+              }
+            }
+          }
+        } catch (e) {}
+
+        // ESTRATÉGIA 2: Inspecionar DOM do #main header procurando atributos com telefone (data-id, jid, img avatar)
+        if (!phone) {
+          try {
+            // Procura no header por imagens de avatar que costumam ter o jid na URL ou em atributos
+            const headerAvatar = document.querySelector("#main header img");
+            if (headerAvatar) {
+              const src = headerAvatar.getAttribute("src") || "";
+              const matchJid = src.match(/(\d{10,14})/);
+              if (matchJid && matchJid[1]) {
+                phone = this.cleanPhoneNumber(matchJid[1]);
+              }
+            }
+          } catch (e) {}
+        }
+
+        // ESTRATÉGIA 3: Inspecionar o painel de contato / item ativo na lista lateral (#side)
+        if (!phone) {
+          try {
+            // No item selecionado da lista lateral (_ak72, _ak73 ou com aria-selected="true")
+            const selectedSideItem = document.querySelector("#side div[aria-selected=\"true\"], #side div[role=\"row\"] div[aria-selected=\"true\"]");
+            if (selectedSideItem) {
+              const sideImg = selectedSideItem.querySelector("img");
+              if (sideImg) {
+                const src = sideImg.getAttribute("src") || "";
+                const matchJid = src.match(/(\d{10,14})/);
+                if (matchJid && matchJid[1]) {
+                  phone = this.cleanPhoneNumber(matchJid[1]);
+                }
+              }
+            }
+          } catch (e) {}
+        }
+
+        // ESTRATÉGIA 4: Leitura do Título Visível do Cabeçalho
+        const titleSelectors = window.WhatsAppSelectors.activeChatHeaderTitle;
         for (const sel of titleSelectors) {
           const elements = document.querySelectorAll(sel);
           for (const el of elements) {
             const txt = (el.getAttribute("title") || el.innerText || "").trim();
-            // Ignorar textos genéricos ou de status do WhatsApp
             if (
               txt &&
               !txt.toLowerCase().includes("mensagens para mim") &&
@@ -206,14 +264,13 @@
               !txt.toLowerCase().includes("digitando") &&
               !txt.toLowerCase().includes("clique aqui para")
             ) {
-              titleText = txt;
+              if (!titleText) titleText = txt;
               break;
             }
           }
           if (titleText) break;
         }
 
-        // 2. Se ainda assim não encontrou pelo seletor filtrado, tenta o primeiro span do header
         if (!titleText) {
           const headerEl = document.querySelector("#main header div[role=\"button\"]");
           if (headerEl) {
@@ -224,20 +281,17 @@
           }
         }
 
-        // Se o título contiver "(você)", remove "(você)" para extrair o telefone puro
-        let cleanText = titleText.replace(/\(você\)/gi, "").replace(/\(you\)/gi, "").trim();
+        // Se o título contiver "(você)", remove "(você)"
+        let cleanText = (titleText || "").replace(/\(você\)/gi, "").replace(/\(you\)/gi, "").trim();
 
-        let digitsOnly = cleanText.replace(/\D/g, "");
-        // Se começar com DDI 55 (Brasil) e tiver 12 ou 13 dígitos (55 + DDD + 8 ou 9 dígitos), remove o 55
-        if (digitsOnly.startsWith("55") && (digitsOnly.length === 12 || digitsOnly.length === 13)) {
-          digitsOnly = digitsOnly.slice(2);
+        // Se ainda não temos o telefone via Store/DOM, testa se o próprio título já é um número
+        if (!phone) {
+          phone = this.cleanPhoneNumber(cleanText);
         }
-
-        const phone = digitsOnly.length >= 8 ? digitsOnly : null;
 
         return {
           name: cleanText || titleText,
-          phone: phone,
+          phone: phone, // Telefone real extraído (ex: "81992329749")
           isPhone: !!phone,
         };
       } catch (e) {

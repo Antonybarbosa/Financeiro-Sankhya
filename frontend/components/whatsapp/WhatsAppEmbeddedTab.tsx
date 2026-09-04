@@ -63,9 +63,15 @@ export function WhatsAppEmbeddedTab() {
           return;
         }
 
-        let incomingClean = incoming;
-        if (infoDigits.startsWith('55') && (infoDigits.length === 12 || infoDigits.length === 13)) {
-          incomingClean = infoDigits.slice(2);
+        // Priorizar sempre o número de telefone real sobre o nome da agenda
+        const rawTarget = (info.phone || info.phoneOrName || '').trim();
+        const incomingDigits = rawTarget.replace(/\D/g, '');
+
+        let incomingClean = rawTarget;
+        if (incomingDigits.startsWith('55') && (incomingDigits.length === 12 || incomingDigits.length === 13)) {
+          incomingClean = incomingDigits.slice(2);
+        } else if (incomingDigits.length >= 8) {
+          incomingClean = incomingDigits;
         }
 
         setActivePhoneOrName(incomingClean);
