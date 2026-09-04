@@ -63,15 +63,20 @@ export function WhatsAppEmbeddedTab() {
           return;
         }
 
-        // Priorizar sempre o número de telefone real sobre o nome da agenda
-        const rawTarget = (info.phone || info.phoneOrName || '').trim();
-        const incomingDigits = rawTarget.replace(/\D/g, '');
+        // Priorizar número de telefone real SE for válido (10 ou 11 dígitos), senão usar o nome
+        let incomingClean = '';
+        const phoneDigits = (info.phone || '').replace(/\D/g, '');
+        const cleanPhone =
+          phoneDigits.startsWith('55') && (phoneDigits.length === 12 || phoneDigits.length === 13)
+            ? phoneDigits.slice(2)
+            : phoneDigits;
 
-        let incomingClean = rawTarget;
-        if (incomingDigits.startsWith('55') && (incomingDigits.length === 12 || incomingDigits.length === 13)) {
-          incomingClean = incomingDigits.slice(2);
-        } else if (incomingDigits.length >= 8) {
-          incomingClean = incomingDigits;
+        if (cleanPhone.length === 10 || cleanPhone.length === 11) {
+          incomingClean = cleanPhone;
+        } else if (info.name && info.name.trim()) {
+          incomingClean = info.name.trim();
+        } else {
+          incomingClean = (info.phoneOrName || '').trim();
         }
 
         setActivePhoneOrName(incomingClean);

@@ -186,15 +186,20 @@
       return false;
     },
 
-    // Helper para extrair e limpar telefone (remove 55 se aplicável)
+    // Helper para extrair e validar telefone do Brasil (DDD + 8 ou 9 dígitos = 10 ou 11 dígitos)
     cleanPhoneNumber: function (raw) {
       if (!raw) return null;
       let digits = String(raw).replace(/\D/g, "");
-      // Se tiver 55 no início e for 12 ou 13 dígitos, remove o 55
+      // Se começar com DDI 55 e tiver 12 ou 13 dígitos, remove o 55
       if (digits.startsWith("55") && (digits.length === 12 || digits.length === 13)) {
         digits = digits.slice(2);
       }
-      return digits.length >= 8 ? digits : null;
+      // Telefone brasileiro válido tem exatamente 10 ou 11 dígitos (DDD + número)
+      // Evita IDs internos do WhatsApp como 12009705619668 (14 dígitos) ou hashes
+      if (digits.length === 10 || digits.length === 11) {
+        return digits;
+      }
+      return null;
     },
 
     // 5. Extrai o telefone/nome da conversa ativa (busca telefone real mesmo com contato salvo)
@@ -217,34 +222,15 @@
           }
         } catch (e) {}
 
-        // ESTRATÉGIA 2: Inspecionar DOM do #main header procurando atributos com telefone (data-id, jid, img avatar)
+        // ESTRATÉGIA 2: Inspecionar atributos do DOM específicos do chat ativo (data-id ou parent containers)
         if (!phone) {
           try {
-            // Procura no header por imagens de avatar que costumam ter o jid na URL ou em atributos
-            const headerAvatar = document.querySelector("#main header img");
-            if (headerAvatar) {
-              const src = headerAvatar.getAttribute("src") || "";
-              const matchJid = src.match(/(\d{10,14})/);
+            const activeMain = document.querySelector("#main");
+            if (activeMain) {
+              const dataId = activeMain.getAttribute("data-id") || "";
+              const matchJid = dataId.match(/(\d{10,13})@c\.us/);
               if (matchJid && matchJid[1]) {
                 phone = this.cleanPhoneNumber(matchJid[1]);
-              }
-            }
-          } catch (e) {}
-        }
-
-        // ESTRATÉGIA 3: Inspecionar o painel de contato / item ativo na lista lateral (#side)
-        if (!phone) {
-          try {
-            // No item selecionado da lista lateral (_ak72, _ak73 ou com aria-selected="true")
-            const selectedSideItem = document.querySelector("#side div[aria-selected=\"true\"], #side div[role=\"row\"] div[aria-selected=\"true\"]");
-            if (selectedSideItem) {
-              const sideImg = selectedSideItem.querySelector("img");
-              if (sideImg) {
-                const src = sideImg.getAttribute("src") || "";
-                const matchJid = src.match(/(\d{10,14})/);
-                if (matchJid && matchJid[1]) {
-                  phone = this.cleanPhoneNumber(matchJid[1]);
-                }
               }
             }
           } catch (e) {}
