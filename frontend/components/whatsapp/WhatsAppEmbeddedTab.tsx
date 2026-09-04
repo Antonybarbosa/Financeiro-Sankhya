@@ -23,7 +23,7 @@ import {
 } from 'lucide-react';
 
 export function WhatsAppEmbeddedTab() {
-  const [activePhoneOrName, setActivePhoneOrName] = useState<string | null>(null);
+  const { activePhoneOrName, openWhatsAppWithContact } = useWhatsAppStore();
   const [manualPhone, setManualPhone] = useState('');
   const [extensionDetected, setExtensionDetected] = useState(false);
   const [iframeKey, setIframeKey] = useState(0);
@@ -46,16 +46,21 @@ export function WhatsAppEmbeddedTab() {
             : phoneDigits;
 
         if (cleanPhone.length >= 8 && cleanPhone.length <= 11) {
-          const currentActive = (activePhoneOrName || '').trim();
+          const state = useWhatsAppStore.getState();
+          const currentActive = (state.activePhoneOrName || '').trim();
           const currentDigits = currentActive.replace(/\D/g, '');
 
-          if (cleanPhone === currentActive || (currentDigits.length >= 8 && currentDigits.endsWith(cleanPhone.slice(-8)))) {
+          // Se for exatamente o mesmo contato já ativo (últimos 8 dígitos iguais), ignora e não recarrega
+          if (
+            cleanPhone === currentActive ||
+            (currentDigits.length >= 8 && currentDigits.endsWith(cleanPhone.slice(-8))) ||
+            (cleanPhone.length >= 8 && cleanPhone.endsWith(currentDigits.slice(-8)))
+          ) {
             return;
           }
 
-          // Atualiza a store global limpando o parceiroId anterior para buscar exclusivamente pelo novo telefone
+          // Atualiza a store global com o novo contato genuíno
           useWhatsAppStore.getState().openWhatsAppWithContact(cleanPhone, undefined, info.name);
-          setActivePhoneOrName(cleanPhone);
           setPanelOpen(true);
         }
       }
@@ -88,7 +93,7 @@ export function WhatsAppEmbeddedTab() {
   const handleManualSearch = (e: React.FormEvent) => {
     e.preventDefault();
     if (manualPhone.trim()) {
-      setActivePhoneOrName(manualPhone.trim());
+      openWhatsAppWithContact(manualPhone.trim(), undefined, undefined);
       setPanelOpen(true);
     }
   };

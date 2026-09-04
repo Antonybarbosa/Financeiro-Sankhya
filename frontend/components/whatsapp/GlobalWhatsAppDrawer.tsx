@@ -57,7 +57,11 @@ export function GlobalWhatsAppDrawer() {
         const currentActive = (state.activePhoneOrName || '').trim();
         const currentDigits = currentActive.replace(/\D/g, '');
 
-        if (cleanPhone === currentActive || (currentDigits.length >= 8 && currentDigits.endsWith(cleanPhone.slice(-8)))) {
+        if (
+          cleanPhone === currentActive ||
+          (currentDigits.length >= 8 && currentDigits.endsWith(cleanPhone.slice(-8))) ||
+          (cleanPhone.length >= 8 && cleanPhone.endsWith(currentDigits.slice(-8)))
+        ) {
           return;
         }
 

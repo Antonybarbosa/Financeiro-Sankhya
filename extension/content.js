@@ -55,7 +55,15 @@
       const currentName = current.name || "";
 
       // Só dispara se houver um NOVO telefone de contato REAL detectado (mínimo 8 dígitos)
-      if (currentPhone && currentPhone.length >= 8 && currentPhone !== lastChatPhone) {
+      if (currentPhone && currentPhone.length >= 8) {
+        const lastDigits = (lastChatPhone || "").replace(/\D/g, "").slice(-8);
+        const currentDigits = currentPhone.replace(/\D/g, "").slice(-8);
+
+        // Se for o mesmo contato já notificado (mesmos 8 dígitos finais), ignora
+        if (lastDigits && currentDigits && lastDigits === currentDigits) {
+          return;
+        }
+
         lastChatPhone = currentPhone;
         lastName = currentName;
 
