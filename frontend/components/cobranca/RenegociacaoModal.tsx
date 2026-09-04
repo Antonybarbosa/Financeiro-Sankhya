@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import { useTitulosPorCliente } from '@/hooks/useCobranca';
 import { useSimularRenegociacao, useConfirmarRenegociacao } from '@/hooks/useRenegociacao';
 import { toast } from '@/hooks/useToast';
@@ -19,11 +19,10 @@ import {
   CONTA_OPCOES,
   EMPRESA_OPCOES,
 } from '@/types/renegociacao';
-import { formatCurrency, formatDate, formatSankhyaDate } from '@/lib/utils';
+import { formatCurrency, formatDate, formatSankhyaDate, cn } from '@/lib/utils';
 import { Dialog, DialogHeader, DialogTitle, DialogCloseButton, DialogContent, DialogFooter } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Select } from '@/components/ui/select';
 import {
   Loader2,
   Calculator,
@@ -34,6 +33,8 @@ import {
   ArrowLeft,
   DollarSign,
   Layers,
+  ChevronDown,
+  Check,
 } from 'lucide-react';
 
 interface RenegociacaoModalProps {
@@ -57,6 +58,7 @@ export function RenegociacaoModal({ parceiroId, parceiroNome, open, onClose, onS
   const [step, setStep] = useState<1 | 2>(1);
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [params, setParams] = useState<Omit<RenegociacaoParams, 'nufins'>>(DEFAULT_RENEGOCIACAO_PARAMS);
+  const [rawInputs, setRawInputs] = useState<{ nroparcel?: string; txjur?: string; txmul?: string }>({});
   const [simulacao, setSimulacao] = useState<SimulacaoResultado | null>(null);
   const [erro, setErro] = useState<string | null>(null);
   const [confirmacao, setConfirmacao] = useState<ConfirmacaoResultado | null>(null);
@@ -68,6 +70,7 @@ export function RenegociacaoModal({ parceiroId, parceiroNome, open, onClose, onS
       setSimulacao(null);
       setErro(null);
       setConfirmacao(null);
+      setRawInputs({});
     }
   }, [open]);
 
@@ -424,40 +427,34 @@ export function RenegociacaoModal({ parceiroId, parceiroNome, open, onClose, onS
                   <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 bg-gray-100/70 p-3.5 rounded-xl border border-gray-200">
                     <Field label="Qtd. de Parcelas">
                       <Input
-                        type="number"
-                        min={1}
-                        value={params.nroparcel}
-                        onChange={(e) => update('nroparcel', Math.max(1, parseInt(e.target.value) || 1))}
+                        type="text"
+                        inputMode="numeric"
+                        value={rawInputs.nroparcel !== undefined ? rawInputs.nroparcel : String(params.nroparcel)}
+                        onChange={(e) => {
+                          const val = e.target.value.replace(/\D/g, '');
+                          setRawInputs((prev) => ({ ...prev, nroparcel: val }));
+                          const parsed = parseInt(val, 10);
+                          update('nroparcel', isNaN(parsed) || parsed < 1 ? 1 : parsed);
+                        }}
+                        placeholder="Ex: 3"
                         className="bg-white text-xs font-bold text-gray-900 border-gray-300"
                       />
                     </Field>
 
                     <Field label="Frequência">
-                      <Select
+                      <CustomSelect
                         value={params.freq}
-                        onChange={(e) => update('freq', e.target.value)}
-                        className="bg-white text-xs font-bold text-gray-900 border-gray-300"
-                      >
-                        {FREQUENCIA_OPCOES.map((o) => (
-                          <option key={o.value} value={o.value} className="text-gray-900 font-medium">
-                            {o.label}
-                          </option>
-                        ))}
-                      </Select>
+                        onChange={(val) => update('freq', val)}
+                        options={FREQUENCIA_OPCOES}
+                      />
                     </Field>
 
                     <Field label="Vencimento Inicial">
-                      <Select
+                      <CustomSelect
                         value={params.venc}
-                        onChange={(e) => update('venc', e.target.value)}
-                        className="bg-white text-xs font-bold text-gray-900 border-gray-300"
-                      >
-                        {VENCIMENTO_OPCOES.map((o) => (
-                          <option key={o.value} value={o.value} className="text-gray-900 font-medium">
-                            {o.label}
-                          </option>
-                        ))}
-                      </Select>
+                        onChange={(val) => update('venc', val)}
+                        options={VENCIMENTO_OPCOES}
+                      />
                     </Field>
 
                     {params.venc === '3' && (
@@ -478,78 +475,66 @@ export function RenegociacaoModal({ parceiroId, parceiroNome, open, onClose, onS
 
                     <Field label="Taxa Juros (%)">
                       <Input
-                        type="number"
-                        step="0.1"
-                        value={params.txjur}
-                        onChange={(e) => update('txjur', parseFloat(e.target.value) || 0)}
+                        type="text"
+                        inputMode="decimal"
+                        value={rawInputs.txjur !== undefined ? rawInputs.txjur : String(params.txjur)}
+                        onChange={(e) => {
+                          const val = e.target.value.replace(/[^0-9.,]/g, '').replace(',', '.');
+                          setRawInputs((prev) => ({ ...prev, txjur: val }));
+                          const parsed = parseFloat(val);
+                          update('txjur', isNaN(parsed) || parsed < 0 ? 0 : parsed);
+                        }}
+                        placeholder="0.0"
                         className="bg-white text-xs font-bold text-gray-900 border-gray-300"
                       />
                     </Field>
 
                     <Field label="Taxa Multa (%)">
                       <Input
-                        type="number"
-                        step="0.1"
-                        value={params.txmul}
-                        onChange={(e) => update('txmul', parseFloat(e.target.value) || 0)}
+                        type="text"
+                        inputMode="decimal"
+                        value={rawInputs.txmul !== undefined ? rawInputs.txmul : String(params.txmul)}
+                        onChange={(e) => {
+                          const val = e.target.value.replace(/[^0-9.,]/g, '').replace(',', '.');
+                          setRawInputs((prev) => ({ ...prev, txmul: val }));
+                          const parsed = parseFloat(val);
+                          update('txmul', isNaN(parsed) || parsed < 0 ? 0 : parsed);
+                        }}
+                        placeholder="0.0"
                         className="bg-white text-xs font-bold text-gray-900 border-gray-300"
                       />
                     </Field>
 
                     <Field label="Tipo de Título">
-                      <Select
+                      <CustomSelect
                         value={params.codTipTit}
-                        onChange={(e) => update('codTipTit', parseInt(e.target.value) || 2)}
-                        className="bg-white text-xs font-bold text-gray-900 border-gray-300"
-                      >
-                        {TIPO_TITULO_OPCOES.map((o) => (
-                          <option key={o.value} value={o.value} className="text-gray-900 font-medium">
-                            {o.label}
-                          </option>
-                        ))}
-                      </Select>
+                        onChange={(val) => update('codTipTit', Number(val))}
+                        options={TIPO_TITULO_OPCOES}
+                      />
                     </Field>
 
                     <Field label="Conta Bancária">
-                      <Select
+                      <CustomSelect
                         value={params.codConta}
-                        onChange={(e) => update('codConta', parseInt(e.target.value) || 97)}
-                        className="bg-white text-xs font-bold text-gray-900 border-gray-300"
-                      >
-                        {CONTA_OPCOES.map((o) => (
-                          <option key={o.value} value={o.value} className="text-gray-900 font-medium">
-                            {o.label}
-                          </option>
-                        ))}
-                      </Select>
+                        onChange={(val) => update('codConta', Number(val))}
+                        options={CONTA_OPCOES}
+                      />
                     </Field>
 
                     <Field label="Empresa dos Títulos">
-                      <Select
+                      <CustomSelect
                         value={params.empresaNovosTitulos}
-                        onChange={(e) => update('empresaNovosTitulos', parseInt(e.target.value) || 2)}
-                        className="bg-white text-xs font-bold text-gray-900 border-gray-300"
-                      >
-                        {EMPRESA_OPCOES.map((o) => (
-                          <option key={o.value} value={o.value} className="text-gray-900 font-medium">
-                            {o.label}
-                          </option>
-                        ))}
-                      </Select>
+                        onChange={(val) => update('empresaNovosTitulos', Number(val))}
+                        options={EMPRESA_OPCOES}
+                      />
                     </Field>
 
                     <Field label="Tipo de Negociação">
-                      <Select
+                      <CustomSelect
                         value={params.negoc}
-                        onChange={(e) => update('negoc', e.target.value)}
-                        className="bg-white text-xs font-bold text-gray-900 border-gray-300"
-                      >
-                        {NEGOCIACAO_OPCOES.map((o) => (
-                          <option key={o.value} value={o.value} className="text-gray-900 font-medium">
-                            {o.label}
-                          </option>
-                        ))}
-                      </Select>
+                        onChange={(val) => update('negoc', val)}
+                        options={NEGOCIACAO_OPCOES}
+                      />
                     </Field>
 
                     <div className="col-span-2 sm:col-span-3 pt-1">
@@ -747,6 +732,80 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
     <div className="space-y-1">
       <Label className="block text-[11px] font-bold text-gray-800">{label}</Label>
       {children}
+    </div>
+  );
+}
+
+function CustomSelect({
+  value,
+  onChange,
+  options,
+  placeholder,
+  className,
+}: {
+  value: string | number;
+  onChange: (val: any) => void;
+  options: readonly { value: string | number; label: string }[] | { value: string | number; label: string }[];
+  placeholder?: string;
+  className?: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (ref.current && !ref.current.contains(event.target as Node)) {
+        setOpen(false);
+      }
+    }
+    if (open) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [open]);
+
+  const selectedOpt = options.find((o) => String(o.value) === String(value));
+
+  return (
+    <div className="relative" ref={ref} onMouseDown={(e) => e.stopPropagation()}>
+      <button
+        type="button"
+        onClick={() => setOpen((prev) => !prev)}
+        className={cn(
+          "flex h-9 w-full items-center justify-between rounded-lg border border-gray-300 bg-white px-3 py-2 text-xs font-bold text-gray-900 shadow-2xs hover:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 cursor-pointer text-left transition-colors",
+          className
+        )}
+      >
+        <span className="truncate">{selectedOpt?.label || placeholder || 'Selecione...'}</span>
+        <ChevronDown className={cn("h-3.5 w-3.5 text-gray-400 shrink-0 transition-transform duration-200", open && "rotate-180")} />
+      </button>
+
+      {open && (
+        <div className="absolute top-full left-0 right-0 mt-1 z-50 bg-white border border-gray-200 rounded-xl shadow-xl py-1 max-h-52 overflow-y-auto">
+          {options.map((opt) => {
+            const isSelected = String(opt.value) === String(value);
+            return (
+              <button
+                key={String(opt.value)}
+                type="button"
+                onClick={() => {
+                  onChange(opt.value);
+                  setOpen(false);
+                }}
+                className={cn(
+                  "w-full flex items-center justify-between px-3 py-2 text-xs text-left transition-colors cursor-pointer",
+                  isSelected ? "bg-indigo-50 text-indigo-900 font-extrabold" : "text-gray-700 hover:bg-gray-50 font-medium"
+                )}
+              >
+                <span className="truncate">{opt.label}</span>
+                {isSelected && <Check className="h-3.5 w-3.5 text-indigo-600 shrink-0" />}
+              </button>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }

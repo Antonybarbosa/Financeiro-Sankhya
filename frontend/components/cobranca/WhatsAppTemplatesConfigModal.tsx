@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import {
   useWhatsAppTemplateStore,
   WhatsAppTemplate,
@@ -22,7 +22,6 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Select } from '@/components/ui/select';
 import {
   MessageSquare,
   Plus,
@@ -36,6 +35,7 @@ import {
   Filter,
   Calendar,
   Layers,
+  ChevronDown,
 } from 'lucide-react';
 
 interface WhatsAppTemplatesConfigModalProps {
@@ -109,6 +109,22 @@ export function WhatsAppTemplatesConfigModal({
 
   const [editando, setEditando] = useState<Partial<WhatsAppTemplate>>({});
   const [isNovo, setIsNovo] = useState(false);
+  const [categoriaDropdownOpen, setCategoriaDropdownOpen] = useState(false);
+  const categoriaDropdownRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (categoriaDropdownRef.current && !categoriaDropdownRef.current.contains(event.target as Node)) {
+        setCategoriaDropdownOpen(false);
+      }
+    }
+    if (categoriaDropdownOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [categoriaDropdownOpen]);
 
   const templateExibido = isNovo
     ? editando
@@ -448,24 +464,47 @@ export function WhatsAppTemplatesConfigModal({
                     />
                   </div>
 
-                  <div className="space-y-1">
+                  <div className="space-y-1" ref={categoriaDropdownRef}>
                     <Label className="text-xs font-bold text-gray-700">Categoria</Label>
-                    <Select
-                      value={templateExibido.categoria || 'COBRANCA_SOMADA'}
-                      onChange={(e) =>
-                        setEditando((prev) => ({
-                          ...prev,
-                          categoria: e.target.value as CategoriaTemplateWhatsApp,
-                        }))
-                      }
-                      className="text-xs font-semibold"
-                    >
-                      {Object.entries(CATEGORIAS_ROTULOS).map(([key, label]) => (
-                        <option key={key} value={key}>
-                          {label}
-                        </option>
-                      ))}
-                    </Select>
+                    <div className="relative">
+                      <button
+                        type="button"
+                        onClick={() => setCategoriaDropdownOpen((prev) => !prev)}
+                        className="flex h-9 w-full items-center justify-between rounded-lg border border-gray-300 bg-white px-3 py-2 text-xs font-semibold text-gray-900 shadow-2xs hover:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 cursor-pointer text-left"
+                      >
+                        <span className="truncate">
+                          {CATEGORIAS_ROTULOS[(templateExibido.categoria as CategoriaTemplateWhatsApp) || 'COBRANCA_SOMADA']}
+                        </span>
+                        <ChevronDown className={`h-4 w-4 text-gray-400 shrink-0 transition-transform ${categoriaDropdownOpen ? 'rotate-180' : ''}`} />
+                      </button>
+
+                      {categoriaDropdownOpen && (
+                        <div className="absolute top-full left-0 right-0 mt-1 z-50 bg-white border border-gray-200 rounded-xl shadow-xl py-1 max-h-56 overflow-y-auto">
+                          {Object.entries(CATEGORIAS_ROTULOS).map(([key, label]) => {
+                            const isSelected = (templateExibido.categoria || 'COBRANCA_SOMADA') === key;
+                            return (
+                              <button
+                                key={key}
+                                type="button"
+                                onClick={() => {
+                                  setEditando((prev) => ({
+                                    ...prev,
+                                    categoria: key as CategoriaTemplateWhatsApp,
+                                  }));
+                                  setCategoriaDropdownOpen(false);
+                                }}
+                                className={`w-full flex items-center justify-between px-3 py-2 text-xs text-left transition-colors cursor-pointer ${
+                                  isSelected ? 'bg-emerald-50 text-emerald-900 font-bold' : 'text-gray-700 hover:bg-gray-50'
+                                }`}
+                              >
+                                <span>{label}</span>
+                                {isSelected && <Check className="h-3.5 w-3.5 text-emerald-600 shrink-0" />}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </div>
 
@@ -674,15 +713,16 @@ export function WhatsAppTemplatesConfigModal({
                         <span className="text-[10px] text-gray-400 font-normal">≥ dias</span>
                       </Label>
                       <Input
-                        type="number"
-                        min={0}
-                        value={filtroExibido.diaInicial ?? 0}
-                        onChange={(e) =>
+                        type="text"
+                        inputMode="numeric"
+                        value={filtroExibido.diaInicial === undefined || filtroExibido.diaInicial === null ? '' : String(filtroExibido.diaInicial)}
+                        onChange={(e) => {
+                          const val = e.target.value.replace(/\D/g, '');
                           setEditandoFiltro((prev) => ({
                             ...prev,
-                            diaInicial: Math.max(0, parseInt(e.target.value, 10) || 0),
-                          }))
-                        }
+                            diaInicial: val === '' ? ('' as any) : parseInt(val, 10),
+                          }));
+                        }}
                         placeholder="Ex: 8"
                         className="text-xs font-semibold"
                       />
@@ -694,39 +734,51 @@ export function WhatsAppTemplatesConfigModal({
                         <span className="text-[10px] text-gray-400 font-normal">Deixe vazio para sem limite</span>
                       </Label>
                       <Input
-                        type="number"
-                        min={0}
-                        value={filtroExibido.diaFinal === null || filtroExibido.diaFinal === undefined ? '' : filtroExibido.diaFinal}
-                        onChange={(e) =>
+                        type="text"
+                        inputMode="numeric"
+                        value={filtroExibido.diaFinal === null || filtroExibido.diaFinal === undefined ? '' : String(filtroExibido.diaFinal)}
+                        onChange={(e) => {
+                          const val = e.target.value.replace(/\D/g, '');
                           setEditandoFiltro((prev) => ({
                             ...prev,
-                            diaFinal: e.target.value === '' ? null : Math.max(0, parseInt(e.target.value, 10) || 0),
-                          }))
-                        }
-                        placeholder="Ex: 30 (ou vazio para > Dia Inicial)"
+                            diaFinal: val === '' ? null : parseInt(val, 10),
+                          }));
+                        }}
+                        placeholder="Ex: 30 (ou vazio para sem limite)"
                         className="text-xs font-semibold"
                       />
                     </div>
                   </div>
 
-                  <div className="space-y-1">
+                  <div className="space-y-1.5">
                     <Label className="text-xs font-bold text-gray-700">Cor do Destaque / Badge</Label>
-                    <Select
-                      value={filtroExibido.cor || 'emerald'}
-                      onChange={(e) =>
-                        setEditandoFiltro((prev) => ({
-                          ...prev,
-                          cor: e.target.value as FilaFilterRange['cor'],
-                        }))
-                      }
-                      className="text-xs font-semibold"
-                    >
-                      {CORES_DISPONIVEIS.map((c) => (
-                        <option key={c.value} value={c.value}>
-                          {c.label}
-                        </option>
-                      ))}
-                    </Select>
+                    <div className="flex flex-wrap gap-2 pt-0.5">
+                      {CORES_DISPONIVEIS.map((c) => {
+                        const isSelected = (filtroExibido.cor || 'emerald') === c.value;
+                        return (
+                          <button
+                            key={c.value}
+                            type="button"
+                            onClick={() =>
+                              setEditandoFiltro((prev) => ({
+                                ...prev,
+                                cor: c.value,
+                              }))
+                            }
+                            className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-xs font-bold transition-all cursor-pointer ${
+                              c.classBadge
+                            } ${
+                              isSelected
+                                ? 'ring-2 ring-emerald-600 ring-offset-1 shadow-xs scale-105'
+                                : 'opacity-70 hover:opacity-100 hover:scale-[1.02]'
+                            }`}
+                          >
+                            {isSelected && <Check className="h-3 w-3 shrink-0" />}
+                            <span>{c.label.split(' ')[0]}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
                   </div>
                 </div>
 

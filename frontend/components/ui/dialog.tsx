@@ -36,6 +36,8 @@ export function Dialog({ open, onClose, children, className }: DialogProps) {
           "relative z-10 w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-lg bg-white shadow-2xl",
           className
         )}
+        onClick={(e) => e.stopPropagation()}
+        onMouseDown={(e) => e.stopPropagation()}
       >
         {children}
       </div>
