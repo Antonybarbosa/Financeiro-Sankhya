@@ -59,8 +59,8 @@ export function WhatsAppEmbeddedTab() {
             return;
           }
 
-          // Atualiza a store global com o novo contato preservando o parceiroId se existente
-          useWhatsAppStore.getState().openWhatsAppWithContact(cleanPhone, state.activePartnerId || undefined, info.name);
+          // Atualiza a store global com o novo contato pesquisando no Sankhya pelo telefone
+          useWhatsAppStore.getState().openWhatsAppWithContact(cleanPhone, undefined, info.name);
           setPanelOpen(true);
         }
       }

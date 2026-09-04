@@ -65,7 +65,7 @@ export function GlobalWhatsAppDrawer() {
           return;
         }
 
-        openWhatsAppWithContact(cleanPhone, state.activePartnerId || undefined, info.name);
+        openWhatsAppWithContact(cleanPhone, undefined, info.name);
       }
     });
 

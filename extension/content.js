@@ -118,10 +118,11 @@
       setTimeout(checkAndNotifyChat, 1200);
     }, true);
 
-    // Apenas Heartbeat a cada 2000ms para indicar que a extensão está conectada
+    // Heartbeat e monitoramento de novo contato (só dispara se houver novo telefone diferente)
     setInterval(() => {
       notifyReady();
-    }, 2000);
+      checkAndNotifyChat();
+    }, 1000);
 
     // Manipulador central de comandos semânticos
     async function handleCommand(command) {

@@ -353,43 +353,41 @@
           return false;
         };
 
-        // ESTRATÉGIA 0: XPath Exato fornecido da Seção de Dados do Contato
+        // ESTRATÉGIA 0: Seção de Dados do Contato / Gaveta aberta (limpeza de caracteres Unicode)
         try {
-          const xpaths = [
-            '//*[@id="app"]/div/div/div[3]/div/div[6]/span/div/span/div/div/div/div/section/div[1]/div[2]/div[2]/span/div/span',
-            '//*[@id="app"]//section/div[1]/div[2]/div[2]/span/div/span',
-            '//section//div[2]/div[2]/span/div/span',
-            '//section//span[contains(text(), "+55")]',
-          ];
-
-          for (const xp of xpaths) {
-            const res = document.evaluate(xp, document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null);
-            const node = res.singleNodeValue;
-            if (node) {
-              const txt = (node.innerText || node.textContent || "").trim();
-              const cleaned = this.cleanPhoneNumber(txt);
+          const sectionSpans = document.querySelectorAll("#app section span, #app section div, [role='region'] span, [role='region'] div, div[tabindex='-1'] span");
+          for (const sp of sectionSpans) {
+            const rawText = (sp.innerText || sp.textContent || "").trim();
+            if (!rawText) continue;
+            // Remove pontuações e caracteres invisíveis do WhatsApp Web
+            const onlyDigits = rawText.replace(/\D/g, "");
+            if (onlyDigits.length >= 10 && onlyDigits.length <= 13) {
+              const cleaned = this.cleanPhoneNumber(onlyDigits);
               if (cleaned && !isSelfOrInvalid(cleaned)) {
                 phone = cleaned;
-                console.log("[WhatsApp Skill] Telefone extraído com sucesso do XPath:", phone, "do texto:", txt);
+                console.log("[WhatsApp Skill] Telefone extraído da seção de contato:", phone, "texto:", rawText);
                 break;
               }
             }
           }
-        } catch (e) {
-          console.warn("[WhatsApp Skill] Erro ao avaliar XPath:", e);
-        }
+        } catch (e) {}
 
-        // ESTRATÉGIA 0.1: CSS Selectors diretos na seção de dados do contato
+        // ESTRATÉGIA 1: Avatar do contato ativo no cabeçalho (#main header) ou lista (#side ativo)
         if (!phone) {
           try {
-            const sectionSpans = document.querySelectorAll("#app section span, section div[role='region'] span, div[tabindex='-1'] span");
-            for (const sp of sectionSpans) {
-              const txt = (sp.innerText || sp.textContent || "").trim();
-              if (txt && /^\+?55\s?\(?\d{2}\)?\s?\d{4,5}[-\s]?\d{4}$/.test(txt)) {
-                const cleaned = this.cleanPhoneNumber(txt);
+            const avatarElements = [
+              document.querySelector("#main header img[src*='u=']"),
+              document.querySelector("#side [aria-selected='true'] img[src*='u=']"),
+            ].filter(Boolean);
+
+            for (const img of avatarElements) {
+              const src = img.getAttribute("src") || "";
+              const match = src.match(/u=(\d{10,13})/);
+              if (match && match[1]) {
+                const cleaned = this.cleanPhoneNumber(match[1]);
                 if (cleaned && !isSelfOrInvalid(cleaned)) {
                   phone = cleaned;
-                  console.log("[WhatsApp Skill] Telefone extraído do seletor de section:", phone);
+                  console.log("[WhatsApp Skill] Telefone extraído da URL do avatar do contato:", phone);
                   break;
                 }
               }
@@ -397,7 +395,95 @@
           } catch (e) {}
         }
 
-        // ESTRATÉGIA 1: Objeto interno Webpack / Store do WhatsApp Web
+        // ESTRATÉGIA 2: Varredura de atributos DOM no nó do contato (#side ativo e #main header)
+        if (!phone) {
+          try {
+            const elementsToScan = [
+              ...document.querySelectorAll("#main header *"),
+              ...document.querySelectorAll("#side [aria-selected='true'] *"),
+              ...document.querySelectorAll("#side [aria-selected='true']"),
+            ];
+
+            for (const el of elementsToScan) {
+              if (el.attributes) {
+                for (let i = 0; i < el.attributes.length; i++) {
+                  const attrVal = el.attributes[i].value;
+                  if (attrVal && typeof attrVal === "string") {
+                    const cleaned = extractJidDigits(attrVal);
+                    if (cleaned && !isSelfOrInvalid(cleaned)) {
+                      phone = cleaned;
+                      console.log("[WhatsApp Skill] Telefone extraído via atributo DOM (" + el.attributes[i].name + "):", phone);
+                      break;
+                    }
+                  }
+                }
+              }
+              if (phone) break;
+            }
+          } catch (e) {}
+        }
+
+        // ESTRATÉGIA 3: React Fiber seguro focado exclusivamente no cabeçalho do chat
+        if (!phone) {
+          try {
+            const checkObjectForPhone = (obj, depth = 0, seen = new Set()) => {
+              if (!obj || depth > 4 || typeof obj !== "object" || seen.has(obj)) return null;
+              seen.add(obj);
+
+              if (typeof obj._serialized === "string" && !obj._serialized.includes("@g.us")) {
+                const m = obj._serialized.match(/(\d{10,13})@c\.us/);
+                if (m && m[1]) {
+                  const c = this.cleanPhoneNumber(m[1]);
+                  if (c && !isSelfOrInvalid(c)) return c;
+                }
+              }
+              if (typeof obj.user === "string" && /^\d{10,13}$/.test(obj.user)) {
+                const c = this.cleanPhoneNumber(obj.user);
+                if (c && !isSelfOrInvalid(c)) return c;
+              }
+              if (typeof obj.jid === "string" && !obj.jid.includes("@g.us")) {
+                const m = obj.jid.match(/(\d{10,13})@c\.us/);
+                if (m && m[1]) {
+                  const c = this.cleanPhoneNumber(m[1]);
+                  if (c && !isSelfOrInvalid(c)) return c;
+                }
+              }
+              if (typeof obj.phoneNumber === "string") {
+                const c = this.cleanPhoneNumber(obj.phoneNumber);
+                if (c && !isSelfOrInvalid(c)) return c;
+              }
+
+              for (const k in obj) {
+                if (["chat", "contact", "activeChat", "id", "item", "user", "props", "data", "model"].includes(k)) {
+                  const res = checkObjectForPhone(obj[k], depth + 1, seen);
+                  if (res) return res;
+                }
+              }
+              return null;
+            };
+
+            const rootProbeElements = [
+              document.querySelector("#main header div[role='button']"),
+              document.querySelector("#side [aria-selected='true']"),
+            ].filter(Boolean);
+
+            for (const el of rootProbeElements) {
+              for (const prop in el) {
+                if (prop.startsWith("__reactFiber$") || prop.startsWith("__reactInternalInstance$") || prop.startsWith("__reactProps$")) {
+                  const found = checkObjectForPhone(el[prop]);
+                  if (found && !isSelfOrInvalid(found)) {
+                    phone = found;
+                    console.log("[WhatsApp Skill] Telefone extraído via React Fiber seguro:", phone);
+                    break;
+                  }
+                }
+              }
+              if (phone) break;
+            }
+          } catch (e) {}
+        }
+
+        // ESTRATÉGIA 4: Objeto interno Webpack / Store do WhatsApp Web
         if (!phone) {
           try {
             const store = window.WhatsAppStore || window.Store;
@@ -421,26 +507,8 @@
                   if (cleaned && !isSelfOrInvalid(cleaned)) {
                     phone = cleaned;
                     titleText = activeChat.name || activeChat.formattedTitle || "";
-                    console.log("[WhatsApp Skill] Telefone extraído com sucesso do WhatsAppStore:", phone, "Nome:", titleText);
+                    console.log("[WhatsApp Skill] Telefone extraído do WhatsAppStore:", phone, "Nome:", titleText);
                   }
-                }
-              }
-            }
-          } catch (e) {}
-        }
-
-        // ESTRATÉGIA 2: Inspecionar o painel lateral direito "Dados do contato" ou seções abertas
-        if (!phone) {
-          try {
-            const allTextNodes = document.querySelectorAll("#app section span, #app section div, #app [role='region'] span, #app [role='region'] div, div[tabindex='-1'] span");
-            for (const node of allTextNodes) {
-              const txt = (node.innerText || "").trim();
-              if (txt && /^\+?55\s?\(?\d{2}\)?\s?\d{4,5}[-\s]?\d{4}$/.test(txt)) {
-                const cleaned = this.cleanPhoneNumber(txt);
-                if (cleaned && !isSelfOrInvalid(cleaned)) {
-                  phone = cleaned;
-                  console.log("[WhatsApp Skill] Telefone extraído do texto de dados do contato:", phone);
-                  break;
                 }
               }
             }
