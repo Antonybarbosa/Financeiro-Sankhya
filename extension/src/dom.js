@@ -278,13 +278,36 @@
         // Helper para obter o telefone do próprio usuário logado e NUNCA confundi-lo com o contato
         const getSelfPhone = () => {
           try {
+            // 1. Chaves de sessão e identidade no localStorage do WhatsApp Web
+            const storageKeys = ["last-wid-md", "last-wid", "me-user", "me"];
+            for (const key of storageKeys) {
+              const val = localStorage.getItem(key);
+              if (val) {
+                const m = String(val).match(/(\d{10,13})/);
+                if (m && m[1]) {
+                  const cleaned = this.cleanPhoneNumber(m[1]);
+                  if (cleaned) return cleaned;
+                }
+              }
+            }
+
+            // 2. Webpack Store interna
             const store = window.WhatsAppStore || window.Store;
             if (store) {
               const selfWid =
                 store.User?.getMe?.()?.user ||
                 store.Conn?.wid?.user ||
+                store.Me?.wid?.user ||
                 store.User?.getMaybeMeUser?.()?.user;
               if (selfWid) return this.cleanPhoneNumber(selfWid);
+            }
+
+            // 3. Avatar próprio do usuário no topo da lista lateral (#side header)
+            const sideHeaderImg = document.querySelector("#side header img[src*='u=']");
+            if (sideHeaderImg) {
+              const src = sideHeaderImg.getAttribute("src") || "";
+              const m = src.match(/u=(\d{10,13})/);
+              if (m && m[1]) return this.cleanPhoneNumber(m[1]);
             }
           } catch (e) {}
           return null;
@@ -294,6 +317,8 @@
         const isSelfOrInvalid = (p) => {
           if (!p) return true;
           if (selfPhone && p === selfPhone) return true;
+          // Se for o mesmo número do usuário conectado ou tiver menos de 8 dígitos
+          if (selfPhone && (p.endsWith(selfPhone.slice(-8)) || selfPhone.endsWith(p.slice(-8)))) return true;
           return false;
         };
 
