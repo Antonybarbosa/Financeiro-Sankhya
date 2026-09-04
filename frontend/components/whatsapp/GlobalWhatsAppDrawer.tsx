@@ -67,9 +67,9 @@ export function GlobalWhatsAppDrawer() {
 
     const checkInterval = setInterval(() => {
       if (whatsappBridge.isExtensionActive()) {
-        setExtensionDetected(true);
+        setExtensionDetected((prev) => (prev ? prev : true));
       }
-    }, 1000);
+    }, 3000);
 
     return () => {
       unsubscribe();

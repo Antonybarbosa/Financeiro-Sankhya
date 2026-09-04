@@ -72,18 +72,23 @@ class WhatsAppBridge {
     else if (data.type === 'WHATSAPP_EVENT') {
       const evt = data.event;
 
-      useWhatsAppTestStore.getState().addLog({
-        direction: 'EVENT',
-        type: 'WHATSAPP_EVENT',
-        action: evt,
-        data: data.data,
-      });
-
       if (evt === 'whatsapp_ready') {
         this.extensionActive = true;
-        useWhatsAppTestStore.getState().setExtensionReady(true);
-        useWhatsAppTestStore.getState().setLastHeartbeat(new Date().toLocaleTimeString('pt-BR'));
-      } else if (evt === 'chat_changed') {
+        const testStore = useWhatsAppTestStore.getState();
+        if (!testStore.extensionReady) {
+          testStore.setExtensionReady(true);
+          testStore.setLastHeartbeat(new Date().toLocaleTimeString('pt-BR'));
+        }
+      } else {
+        useWhatsAppTestStore.getState().addLog({
+          direction: 'EVENT',
+          type: 'WHATSAPP_EVENT',
+          action: evt,
+          data: data.data,
+        });
+      }
+
+      if (evt === 'chat_changed') {
         const chatData = data.data || {};
         const phone = chatData.phone || (chatData.phoneOrName && chatData.phoneOrName.replace(/\D/g, '').length >= 8 ? chatData.phoneOrName : null);
         const name = chatData.name || (chatData.phoneOrName && !phone ? chatData.phoneOrName : '');
