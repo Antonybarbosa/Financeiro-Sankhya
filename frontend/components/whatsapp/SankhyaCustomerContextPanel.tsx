@@ -643,21 +643,38 @@ export function SankhyaCustomerContextPanel({
                 <span className="text-[11px] text-gray-400">Consultando cadastro e títulos em aberto no Sankhya</span>
               </div>
             ) : !cliente ? (
-              <div className="rounded-xl border border-amber-200 bg-amber-50/60 p-5 text-xs text-amber-800 space-y-2.5 text-center my-6 shadow-2xs">
-                <AlertTriangle className="h-7 w-7 text-amber-600 mx-auto" />
-                <p className="font-extrabold text-sm text-amber-900">
-                  {activePhoneOrName ? 'Cliente não localizado no Sankhya' : 'Nenhum cliente selecionado'}
-                </p>
-                <p className="text-[11px] text-amber-700 leading-relaxed max-w-xs mx-auto">
-                  {activePhoneOrName
-                    ? `Não encontramos nenhum parceiro com o contato "${activePhoneOrName}". Selecione um cliente na fila ou pesquise manualmente.`
-                    : 'Volte para a fila e selecione um cliente para visualizar os títulos e enviar mensagens.'}
-                </p>
-                <div className="pt-2 flex items-center justify-center gap-2">
+              <div className="rounded-xl border border-amber-200 bg-amber-50/70 p-5 text-xs text-amber-900 space-y-3 text-center my-6 shadow-2xs">
+                <AlertTriangle className="h-8 w-8 text-amber-600 mx-auto" />
+                <div>
+                  <p className="font-extrabold text-sm text-amber-950">
+                    {activePhoneOrName ? 'Cliente não localizado no Sankhya' : 'Nenhum cliente selecionado'}
+                  </p>
+                  <p className="text-[11px] text-amber-700 mt-1">
+                    {activePhoneOrName
+                      ? 'Nenhum cadastro de parceiro ou contato correspondeu aos dados recebidos do WhatsApp:'
+                      : 'Volte para a fila e selecione um cliente para visualizar os títulos e enviar mensagens.'}
+                  </p>
+                </div>
+
+                {activePhoneOrName && (
+                  <div className="bg-white/90 border border-amber-300 rounded-lg p-2.5 mx-auto max-w-xs text-left shadow-2xs">
+                    <div className="flex items-center justify-between text-[10px] text-amber-800 font-bold mb-1">
+                      <span>Termo detectado no WhatsApp:</span>
+                      <span className="font-mono bg-amber-100 px-1.5 py-0.5 rounded text-amber-900">
+                        {activePhoneOrName.replace(/\D/g, '').length >= 8 ? 'Telefone' : 'Nome / Contato'}
+                      </span>
+                    </div>
+                    <div className="font-mono text-xs font-black text-gray-900 break-all select-all bg-gray-50 border border-gray-200 rounded p-1.5">
+                      {activePhoneOrName}
+                    </div>
+                  </div>
+                )}
+
+                <div className="pt-1 flex items-center justify-center gap-2">
                   <button
                     type="button"
                     onClick={() => setActiveTab('fila')}
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 text-white rounded-lg text-xs font-bold hover:bg-emerald-700 shadow-2xs transition-colors"
+                    className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-emerald-600 text-white rounded-lg text-xs font-bold hover:bg-emerald-700 shadow-2xs transition-colors"
                   >
                     <ArrowLeft className="h-3.5 w-3.5" />
                     Ir para a Fila de Cobrança
