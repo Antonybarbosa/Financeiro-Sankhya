@@ -353,46 +353,77 @@
           return false;
         };
 
-        // ESTRATÉGIA 0: Seção de Dados do Contato / Gaveta aberta / Painel Lateral Direito
+        // ESTRATÉGIA PRIORITÁRIA 0: XPath Exato dos Dados do Contato
         try {
-          const drawerCandidates = document.querySelectorAll(
-            "#app [data-testid*='drawer'] span, #app [data-testid*='drawer'] div, " +
-            "#app [data-testid*='contact-info'] span, #app [data-testid*='contact-info'] div, " +
-            "#app [data-testid*='chat-info'] span, #app [data-testid*='chat-info'] div, " +
-            "#app section span, #app section div, [role='region'] span, [role='region'] div, " +
-            "div[tabindex='-1'] span, div[tabindex='-1'] div, aside span, aside div"
-          );
+          const exactXPaths = [
+            '//*[@id="app"]/div/div/div[3]/div/div[6]/span/div/span/div/div/div/div/section/div[1]/div[2]/div[2]/span/div/span',
+            '//*[@id="app"]//section/div[1]/div[2]/div[2]/span/div/span',
+            '//section/div[1]/div[2]/div[2]/span/div/span',
+            '//section//div[2]/div[2]/span/div/span',
+            '//section//span[contains(text(), "+55")]',
+          ];
 
-          for (const el of drawerCandidates) {
-            const rawText = (el.innerText || el.textContent || "").trim();
-            if (!rawText || rawText.length < 8 || rawText.length > 200) continue;
-
-            // Busca por padrão de telefone brasileiro no texto
-            const matches = rawText.match(/(?:[+]?55\s*)?(?:\(?\d{2}\)?\s*)?(?:9\s*)?\d{4}[-\s]*\d{4}/g);
-            if (matches) {
-              for (const m of matches) {
-                const cleaned = this.cleanPhoneNumber(m);
+          for (const xp of exactXPaths) {
+            const res = document.evaluate(xp, document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null);
+            const node = res.singleNodeValue;
+            if (node) {
+              const rawTxt = (node.innerText || node.textContent || "").trim();
+              if (rawTxt) {
+                const cleaned = this.cleanPhoneNumber(rawTxt);
                 if (cleaned && !isSelfOrInvalid(cleaned)) {
                   phone = cleaned;
-                  console.log("[WhatsApp Skill] Telefone extraído da gaveta/seção de contato:", phone, "texto:", m);
+                  console.log("[WhatsApp Skill] Telefone extraído com SUCESSO da XPath exata:", phone, "Texto original:", rawTxt);
                   break;
                 }
               }
             }
-            if (phone) break;
+          }
+        } catch (eXPath) {
+          console.warn("[WhatsApp Skill] Erro ao avaliar XPath exato:", eXPath);
+        }
 
-            // Fallback por dígitos puros
-            const onlyDigits = rawText.replace(/\D/g, "");
-            if (onlyDigits.length >= 10 && onlyDigits.length <= 13) {
-              const cleaned = this.cleanPhoneNumber(onlyDigits);
-              if (cleaned && !isSelfOrInvalid(cleaned)) {
-                phone = cleaned;
-                console.log("[WhatsApp Skill] Telefone extraído por dígitos na gaveta:", phone);
-                break;
+        // ESTRATÉGIA 0.1: Varredura de seletores da Gaveta aberta / Painel Lateral Direito
+        if (!phone) {
+          try {
+            const drawerCandidates = document.querySelectorAll(
+              "#app [data-testid*='drawer'] span, #app [data-testid*='drawer'] div, " +
+              "#app [data-testid*='contact-info'] span, #app [data-testid*='contact-info'] div, " +
+              "#app [data-testid*='chat-info'] span, #app [data-testid*='chat-info'] div, " +
+              "#app section span, #app section div, [role='region'] span, [role='region'] div, " +
+              "div[tabindex='-1'] span, div[tabindex='-1'] div, aside span, aside div"
+            );
+
+            for (const el of drawerCandidates) {
+              const rawText = (el.innerText || el.textContent || "").trim();
+              if (!rawText || rawText.length < 8 || rawText.length > 200) continue;
+
+              // Busca por padrão de telefone brasileiro no texto
+              const matches = rawText.match(/(?:[+]?55\s*)?(?:\(?\d{2}\)?\s*)?(?:9\s*)?\d{4}[-\s]*\d{4}/g);
+              if (matches) {
+                for (const m of matches) {
+                  const cleaned = this.cleanPhoneNumber(m);
+                  if (cleaned && !isSelfOrInvalid(cleaned)) {
+                    phone = cleaned;
+                    console.log("[WhatsApp Skill] Telefone extraído da gaveta/seção de contato:", phone, "texto:", m);
+                    break;
+                  }
+                }
+              }
+              if (phone) break;
+
+              // Fallback por dígitos puros
+              const onlyDigits = rawText.replace(/\D/g, "");
+              if (onlyDigits.length >= 10 && onlyDigits.length <= 13) {
+                const cleaned = this.cleanPhoneNumber(onlyDigits);
+                if (cleaned && !isSelfOrInvalid(cleaned)) {
+                  phone = cleaned;
+                  console.log("[WhatsApp Skill] Telefone extraído por dígitos na gaveta:", phone);
+                  break;
+                }
               }
             }
-          }
-        } catch (e) {}
+          } catch (e) {}
+        }
 
         // ESTRATÉGIA 1: Avatar do contato ativo no cabeçalho (#main header) ou lista (#side ativo)
         if (!phone) {
