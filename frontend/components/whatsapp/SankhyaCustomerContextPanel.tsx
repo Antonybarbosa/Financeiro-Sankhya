@@ -46,6 +46,8 @@ import {
   Filter,
   ChevronDown,
   SlidersHorizontal,
+  Check,
+  Plus,
 } from 'lucide-react';
 
 interface SankhyaCustomerContextPanelProps {
@@ -100,11 +102,36 @@ export function SankhyaCustomerContextPanel({
   const { filtros, filtroAtivoId, setFiltroAtivoId } = useWhatsAppFilaFilterStore();
 
   const [filaBusca, setFilaBusca] = useState('');
+  const [filterDropdownOpen, setFilterDropdownOpen] = useState(false);
+  const filterDropdownRef = useRef<HTMLDivElement | null>(null);
+
   const [configModalOpen, setConfigModalOpen] = useState(false);
   const [configModalTab, setConfigModalTab] = useState<'templates' | 'filtros'>('templates');
   const [diagnosticModalOpen, setDiagnosticModalOpen] = useState(false);
   const [mensagemEditada, setMensagemEditada] = useState('');
   const [sending, setSending] = useState(false);
+
+  // Fechar dropdown de filtros ao clicar fora ou apertar Esc
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (filterDropdownRef.current && !filterDropdownRef.current.contains(event.target as Node)) {
+        setFilterDropdownOpen(false);
+      }
+    }
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === 'Escape') {
+        setFilterDropdownOpen(false);
+      }
+    }
+    if (filterDropdownOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+      document.addEventListener('keydown', handleKeyDown);
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [filterDropdownOpen]);
 
   // Modais de Documentos e Renegociação
   const [boletoTituloId, setBoletoTituloId] = useState<number | null>(null);
@@ -519,7 +546,10 @@ export function SankhyaCustomerContextPanel({
               {filaBusca && (
                 <button
                   type="button"
-                  onClick={() => setFilaBusca('')}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setFilaBusca('');
+                  }}
                   className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 p-0.5 rounded transition-colors z-10 cursor-pointer"
                   title="Limpar busca"
                 >
@@ -528,41 +558,138 @@ export function SankhyaCustomerContextPanel({
               )}
             </div>
 
-            {/* Seletor Dropdown de Faixas de Atraso Configuráveis */}
-            <div className="space-y-1.5">
-              <div className="flex items-center gap-1.5">
-                <div className="relative flex-1">
-                  <Filter className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-emerald-600 pointer-events-none z-10" />
-                  <select
-                    id="filtro-atraso-dropdown"
-                    value={filtroAtivoId}
-                    onChange={(e) => setFiltroAtivoId(e.target.value)}
-                    className="w-full rounded-lg border border-gray-300 pl-8 pr-7 py-1.5 text-xs font-bold text-gray-800 bg-white hover:border-emerald-500 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 focus:outline-none shadow-2xs cursor-pointer appearance-none"
-                  >
-                    {filtros.map((f) => {
-                      const count = countsByFiltro[f.id] ?? 0;
-                      return (
-                        <option key={f.id} value={f.id}>
-                          {f.label} ({count})
-                        </option>
-                      );
-                    })}
-                  </select>
-                  <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400 pointer-events-none" />
-                </div>
+            {/* Seletor Dropdown Customizado de Faixas de Atraso Configuráveis */}
+            <div className="space-y-1.5" ref={filterDropdownRef}>
+              <div className="flex items-center gap-1.5 relative">
+                {/* Botão Gatilho do Dropdown */}
+                <button
+                  id="filtro-atraso-dropdown-btn"
+                  type="button"
+                  onClick={() => setFilterDropdownOpen((prev) => !prev)}
+                  className="flex-1 flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-lg border border-gray-300 bg-white hover:border-emerald-500 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 text-xs text-gray-800 font-bold shadow-2xs transition-all cursor-pointer text-left"
+                >
+                  <div className="flex items-center gap-2 min-w-0">
+                    <Filter className="h-3.5 w-3.5 text-emerald-600 shrink-0" />
+                    <span className="truncate">{filtroAtual.label}</span>
+                  </div>
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    <span className="text-[10px] font-mono font-bold px-1.5 py-0.2 rounded-md bg-emerald-50 text-emerald-800 border border-emerald-200">
+                      {countsByFiltro[filtroAtual.id] ?? 0}
+                    </span>
+                    <ChevronDown
+                      className={`h-3.5 w-3.5 text-gray-400 transition-transform duration-200 ${
+                        filterDropdownOpen ? 'rotate-180' : ''
+                      }`}
+                    />
+                  </div>
+                </button>
 
                 {/* Botão Atalho para Abrir Configuração de Filtros */}
                 <button
                   type="button"
                   onClick={() => {
+                    setFilterDropdownOpen(false);
                     setConfigModalTab('filtros');
                     setConfigModalOpen(true);
                   }}
-                  className="p-1.5 rounded-lg border border-gray-200 bg-gray-50 text-gray-600 hover:text-emerald-700 hover:bg-emerald-50 hover:border-emerald-300 transition-colors shrink-0 shadow-2xs"
+                  className="p-1.5 rounded-lg border border-gray-200 bg-gray-50 text-gray-600 hover:text-emerald-700 hover:bg-emerald-50 hover:border-emerald-300 transition-colors shrink-0 shadow-2xs cursor-pointer"
                   title="Configurar e criar novos filtros de dias de atraso"
                 >
                   <SlidersHorizontal className="h-4 w-4" />
                 </button>
+
+                {/* Menu Popover Flutuante de Opções de Faixa */}
+                {filterDropdownOpen && (
+                  <div className="absolute top-full left-0 right-0 mt-1 z-50 bg-white border border-gray-200 rounded-xl shadow-xl py-1 max-h-72 overflow-y-auto">
+                    <div className="px-3 py-1.5 text-[10px] font-bold text-gray-400 uppercase tracking-wider border-b border-gray-100 flex items-center justify-between">
+                      <span>Faixas de Atraso</span>
+                      <span>Total: {countTodos}</span>
+                    </div>
+
+                    <div className="py-1">
+                      {filtros.map((f) => {
+                        const count = countsByFiltro[f.id] ?? 0;
+                        const isSelected = f.id === filtroAtivoId;
+
+                        return (
+                          <button
+                            key={f.id}
+                            type="button"
+                            onClick={() => {
+                              setFiltroAtivoId(f.id);
+                              setFilterDropdownOpen(false);
+                            }}
+                            className={`w-full flex items-center justify-between gap-2 px-3 py-2 text-xs text-left transition-colors cursor-pointer ${
+                              isSelected
+                                ? 'bg-emerald-50 text-emerald-950 font-bold'
+                                : 'text-gray-700 hover:bg-gray-50 font-medium'
+                            }`}
+                          >
+                            <div className="flex items-center gap-2 min-w-0">
+                              <span
+                                className={`h-2.5 w-2.5 rounded-full shrink-0 ${
+                                  f.cor === 'amber'
+                                    ? 'bg-amber-500'
+                                    : f.cor === 'orange'
+                                    ? 'bg-orange-500'
+                                    : f.cor === 'rose'
+                                    ? 'bg-rose-500'
+                                    : f.cor === 'blue'
+                                    ? 'bg-blue-500'
+                                    : f.cor === 'purple'
+                                    ? 'bg-purple-500'
+                                    : f.cor === 'gray'
+                                    ? 'bg-gray-400'
+                                    : 'bg-emerald-500'
+                                }`}
+                              />
+                              <div className="truncate">
+                                <p className="truncate leading-tight">{f.label}</p>
+                                <p className="text-[10px] text-gray-400 font-normal">
+                                  {f.id === FILTRO_TODOS_ID
+                                    ? 'Todos os títulos pendentes'
+                                    : f.diaFinal === null
+                                    ? `Mais de ${f.diaInicial} dias de atraso`
+                                    : f.diaInicial === f.diaFinal
+                                    ? `${f.diaInicial} dias (em dia)`
+                                    : `${f.diaInicial} a ${f.diaFinal} dias de atraso`}
+                                </p>
+                              </div>
+                            </div>
+
+                            <div className="flex items-center gap-1.5 shrink-0">
+                              <span
+                                className={`text-[10px] font-mono px-1.5 py-0.5 rounded-md border font-bold ${
+                                  isSelected
+                                    ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
+                                    : 'bg-gray-100 text-gray-600 border-gray-200'
+                                }`}
+                              >
+                                {count}
+                              </span>
+                              {isSelected && <Check className="h-3.5 w-3.5 text-emerald-600 shrink-0" />}
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+
+                    <div className="border-t border-gray-100 pt-1 px-1 bg-gray-50/50">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setFilterDropdownOpen(false);
+                          setConfigModalTab('filtros');
+                          setConfigModalOpen(true);
+                        }}
+                        className="w-full flex items-center justify-center gap-1.5 px-2.5 py-1.5 text-[11px] font-bold text-emerald-700 hover:text-emerald-800 hover:bg-emerald-50 rounded-lg transition-colors cursor-pointer"
+                      >
+                        <SlidersHorizontal className="h-3.5 w-3.5" />
+                        <span>Gerenciar / Criar Faixas</span>
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Informação / Badge da Faixa Selecionada */}

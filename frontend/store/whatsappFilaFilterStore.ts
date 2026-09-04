@@ -1,4 +1,4 @@
-﻿import { create } from 'zustand';
+import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 
 export interface FilaFilterRange {
@@ -114,6 +114,22 @@ export const useWhatsAppFilaFilterStore = create<WhatsAppFilaFilterState>()(
     }),
     {
       name: 'whatsapp-fila-filters-storage',
+      merge: (persistedState: any, currentState) => {
+        if (!persistedState || typeof persistedState !== 'object') {
+          return currentState;
+        }
+        const persistedFiltros = Array.isArray(persistedState.filtros) && persistedState.filtros.length > 0
+          ? persistedState.filtros
+          : FILTROS_PADRAO;
+        const exists = persistedFiltros.some((f: FilaFilterRange) => f.id === persistedState.filtroAtivoId);
+        return {
+          ...currentState,
+          ...persistedState,
+          filtros: persistedFiltros,
+          filtroAtivoId: exists ? persistedState.filtroAtivoId : (persistedFiltros[0]?.id || FILTRO_TODOS_ID),
+        };
+      },
     }
   )
 );
+
