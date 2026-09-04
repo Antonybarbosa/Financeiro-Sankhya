@@ -367,8 +367,10 @@
             const res = document.evaluate(xp, document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null);
             const node = res.singleNodeValue;
             if (node) {
+              const rect = node.getBoundingClientRect();
+              const isVisible = rect.width > 0 && rect.height > 0;
               const rawTxt = (node.innerText || node.textContent || "").trim();
-              if (rawTxt) {
+              if (rawTxt && (isVisible || rawTxt.includes("+55") || rawTxt.replace(/\D/g, "").length >= 10)) {
                 const cleaned = this.cleanPhoneNumber(rawTxt);
                 if (cleaned && !isSelfOrInvalid(cleaned)) {
                   phone = cleaned;
@@ -382,43 +384,27 @@
           console.warn("[WhatsApp Skill] Erro ao avaliar XPath exato:", eXPath);
         }
 
-        // ESTRATÉGIA 0.1: Varredura de seletores da Gaveta aberta / Painel Lateral Direito
+        // ESTRATÉGIA 0.1: Gaveta de detalhes do contato aberta (somente dentro da gaveta real)
         if (!phone) {
           try {
-            const drawerCandidates = document.querySelectorAll(
-              "#app [data-testid*='drawer'] span, #app [data-testid*='drawer'] div, " +
-              "#app [data-testid*='contact-info'] span, #app [data-testid*='contact-info'] div, " +
-              "#app [data-testid*='chat-info'] span, #app [data-testid*='chat-info'] div, " +
-              "#app section span, #app section div, [role='region'] span, [role='region'] div, " +
-              "div[tabindex='-1'] span, div[tabindex='-1'] div, aside span, aside div"
+            const drawerContainer = document.querySelector(
+              "#app [data-testid*='contact-info-drawer'], #app [data-testid*='chat-info-drawer'], #app [data-testid*='drawer'], #app section"
             );
 
-            for (const el of drawerCandidates) {
-              const rawText = (el.innerText || el.textContent || "").trim();
-              if (!rawText || rawText.length < 8 || rawText.length > 200) continue;
+            if (drawerContainer) {
+              const spans = drawerContainer.querySelectorAll("span, div[role='button'] span, h2");
+              for (const el of spans) {
+                const rawText = (el.innerText || el.textContent || "").trim();
+                if (!rawText || rawText.length < 8 || rawText.length > 50) continue;
 
-              // Busca por padrão de telefone brasileiro no texto
-              const matches = rawText.match(/(?:[+]?55\s*)?(?:\(?\d{2}\)?\s*)?(?:9\s*)?\d{4}[-\s]*\d{4}/g);
-              if (matches) {
-                for (const m of matches) {
-                  const cleaned = this.cleanPhoneNumber(m);
+                // Busca por padrão de telefone brasileiro (+55 DD 9XXXX-XXXX ou similar)
+                if (rawText.includes("+55") || /^\+?55\s?\(?\d{2}\)?\s?\d{4,5}[-\s]?\d{4}$/.test(rawText)) {
+                  const cleaned = this.cleanPhoneNumber(rawText);
                   if (cleaned && !isSelfOrInvalid(cleaned)) {
                     phone = cleaned;
-                    console.log("[WhatsApp Skill] Telefone extraído da gaveta/seção de contato:", phone, "texto:", m);
+                    console.log("[WhatsApp Skill] Telefone extraído da gaveta aberta:", phone, "texto:", rawText);
                     break;
                   }
-                }
-              }
-              if (phone) break;
-
-              // Fallback por dígitos puros
-              const onlyDigits = rawText.replace(/\D/g, "");
-              if (onlyDigits.length >= 10 && onlyDigits.length <= 13) {
-                const cleaned = this.cleanPhoneNumber(onlyDigits);
-                if (cleaned && !isSelfOrInvalid(cleaned)) {
-                  phone = cleaned;
-                  console.log("[WhatsApp Skill] Telefone extraído por dígitos na gaveta:", phone);
-                  break;
                 }
               }
             }
