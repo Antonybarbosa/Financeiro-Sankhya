@@ -54,12 +54,18 @@ export function WhatsAppEmbeddedTab() {
         }
 
         if (cleanPhone.length >= 8 && cleanPhone.length <= 11) {
+          // Atualiza a store global limpando o parceiroId anterior para buscar pelo novo telefone
+          useWhatsAppStore.getState().openWhatsAppWithContact(cleanPhone, undefined, info.name);
           setActivePhoneOrName(cleanPhone);
           setPanelOpen(true);
         }
       } else if (info.name && info.name.trim()) {
-        setActivePhoneOrName(info.name.trim());
-        setPanelOpen(true);
+        const currentActive = (activePhoneOrName || '').trim();
+        if (info.name.trim() !== currentActive) {
+          useWhatsAppStore.getState().openWhatsAppWithContact(info.name.trim(), undefined, info.name.trim());
+          setActivePhoneOrName(info.name.trim());
+          setPanelOpen(true);
+        }
       }
     });
 

@@ -65,7 +65,10 @@ export function GlobalWhatsAppDrawer() {
         // Só atualiza se for uma conversa com telefone validado
         openWhatsAppWithContact(cleanPhone, undefined, info.name);
       } else if (info.name && info.name.trim()) {
-        openWhatsAppWithContact(info.name.trim(), undefined, info.name.trim());
+        const state = useWhatsAppStore.getState();
+        if (info.name.trim() !== (state.activePhoneOrName || '').trim()) {
+          openWhatsAppWithContact(info.name.trim(), undefined, info.name.trim());
+        }
       }
     });
 

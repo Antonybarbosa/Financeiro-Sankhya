@@ -54,10 +54,13 @@
       const currentPhone = current.phone || "";
       const currentName = current.name || "";
 
-      // Se mudou o telefone ou mudou o nome do chat ativo
-      if ((currentPhone && currentPhone !== lastChatPhone) || (currentName && currentName !== lastName)) {
+      // Só dispara se houver um NOVO telefone detectado OU se mudou para outro contato por nome
+      const isNewPhone = currentPhone && currentPhone !== lastChatPhone;
+      const isNewNamedChat = !currentPhone && currentName && currentName !== lastName;
+
+      if (isNewPhone || isNewNamedChat) {
         if (currentPhone) lastChatPhone = currentPhone;
-        if (currentName) lastName = currentName;
+        lastName = currentName;
 
         const evtPayload = {
           type: "WHATSAPP_EVENT",

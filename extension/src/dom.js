@@ -533,6 +533,17 @@
           phone = this.cleanPhoneNumber(cleanText);
         }
 
+        const chatKey = cleanText ? cleanText.toLowerCase() : "";
+
+        // Se encontrou o telefone, guarda no cache da sessão do chat ativo
+        if (phone && chatKey) {
+          window._whatsappKnownChatPhones = window._whatsappKnownChatPhones || new Map();
+          window._whatsappKnownChatPhones.set(chatKey, phone);
+        } else if (!phone && chatKey && window._whatsappKnownChatPhones && window._whatsappKnownChatPhones.has(chatKey)) {
+          // Se a gaveta de dados foi fechada, recupera o telefone cacheado deste mesmo contato
+          phone = window._whatsappKnownChatPhones.get(chatKey);
+        }
+
         return {
           name: cleanText || titleText,
           phone: phone, // Telefone real extraído (ex: "81992329749" ou "8192723826")

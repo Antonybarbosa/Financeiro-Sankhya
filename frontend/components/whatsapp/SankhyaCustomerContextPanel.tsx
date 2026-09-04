@@ -211,11 +211,18 @@ export function SankhyaCustomerContextPanel({
         return matchTel || matchNome;
       });
 
-      if (matchFila && matchFila.parceiroId && matchFila.parceiroId !== activePartnerId) {
-        openWhatsAppWithContact(matchFila.telefone || activePhoneOrName, matchFila.parceiroId, matchFila.parceiroNome);
+      if (matchFila && matchFila.parceiroId) {
+        if (matchFila.parceiroId !== activePartnerId) {
+          openWhatsAppWithContact(matchFila.telefone || activePhoneOrName, matchFila.parceiroId, matchFila.parceiroNome);
+        }
+      } else {
+        // Se não for da fila de cobrança do dia, limpa o parceiroId anterior para pesquisar pelo novo telefone no Sankhya
+        if (activePartnerId) {
+          openWhatsAppWithContact(activePhoneOrName, undefined, undefined);
+        }
       }
     }
-  }, [activePhoneOrName, rawFilaItems, activePartnerId]);
+  }, [activePhoneOrName, rawFilaItems, activePartnerId, openWhatsAppWithContact]);
 
   // Busca cliente e títulos por parceiroId ou telefone (com proteção contra busca duplicada e race condition)
   const lastFetchedKeyRef = useRef<string>('');
@@ -249,11 +256,8 @@ export function SankhyaCustomerContextPanel({
       const validPhone = phoneDigits.length >= 8 ? activePhoneOrName : undefined;
 
       // Se não tiver parceiroId E não for um telefone com pelo menos 8 dígitos, não dispara busca no Sankhya
+      // e mantém o cliente atualmente carregado na tela (não reseta nem ancora no anterior)
       if (!activePartnerId && !validPhone) {
-        setCliente(null);
-        setClientesEncontrados([]);
-        setTitulos([]);
-        setTotalEmAberto(0);
         return;
       }
 
