@@ -1,6 +1,4 @@
 (function () {
-  if (!window.location.hostname.includes("whatsapp.com")) return;
-
   window.WhatsAppSelectors = {
     messageInput: [
       '#main footer div[contenteditable="true"]',

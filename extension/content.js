@@ -1,11 +1,41 @@
 (function () {
+  const isHostPage = window.location.origin.includes("localhost") || window.location.origin.includes("127.0.0.1");
   const isWhatsApp = window.location.hostname.includes("whatsapp.com");
-  if (!isWhatsApp) {
-    return; // Abortar imediatamente fora do WhatsApp Web para evitar qualquer interferência em inputs do sistema
+
+  console.log(`[WhatsApp Skill Engine] Script injetado em: ${window.location.href} (isHost: ${isHostPage}, isWhatsApp: ${isWhatsApp})`);
+
+  // ========================================================
+  // 1. COMPORTAMENTO NA PÁGINA PRINCIPAL (Next.js / Localhost)
+  // ========================================================
+  if (isHostPage) {
+    function notifyHostReady() {
+      try {
+        window.postMessage({ type: "WHATSAPP_EVENT", event: "whatsapp_ready", timestamp: Date.now() }, "*");
+      } catch (e) {}
+    }
+
+    notifyHostReady();
+    setInterval(notifyHostReady, 2000);
+
+    // Escuta comandos na página principal e repassa para todos os iframes da tela
+    window.addEventListener("message", (event) => {
+      if (!event.data || typeof event.data !== "object") return;
+      if (event.data.type === "WHATSAPP_COMMAND") {
+        const iframes = document.querySelectorAll("iframe");
+        iframes.forEach((ifr) => {
+          try {
+            ifr.contentWindow?.postMessage(event.data, "*");
+          } catch (e) {}
+        });
+      }
+    });
+    return;
   }
 
-  console.log(`[WhatsApp Skill Engine] Script ativo no WhatsApp Web: ${window.location.href}`);
-
+  // ========================================================
+  // 2. COMPORTAMENTO NO WHATSAPP WEB (Dentro do Iframe)
+  // ========================================================
+  if (isWhatsApp) {
     let lastChatPhone = "";
     let lastName = "";
 

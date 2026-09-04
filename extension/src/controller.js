@@ -1,6 +1,4 @@
 (function () {
-  if (!window.location.hostname.includes("whatsapp.com")) return;
-
   window.WhatsAppController = {
     // 1. Verificar status da conexão
     status: async function () {
