@@ -222,9 +222,7 @@ export function SankhyaCustomerContextPanel({
         }
       } else {
         // Se for um contato externo ou não presente na fila, limpa o parceiroId anterior para consultar no Sankhya pelo telefone
-        if (activePartnerId) {
-          openWhatsAppWithContact(activePhoneOrName, undefined, undefined);
-        }
+        openWhatsAppWithContact(activePhoneOrName, undefined, undefined);
       }
     }
   }, [activePhoneOrName, rawFilaItems, activePartnerId, openWhatsAppWithContact]);
@@ -280,9 +278,23 @@ export function SankhyaCustomerContextPanel({
 
           const ids = new Set<number>(listTitulos.map((t) => t.id));
           setSelectedIds(ids);
+        } else {
+          // Quando o cliente não for localizado para o novo número/termo buscado
+          setCliente(null);
+          setClientesEncontrados([]);
+          setTitulos([]);
+          setTotalEmAberto(0);
+          setSelectedIds(new Set());
+          setDebugBusca(resp.data || null);
         }
-      } catch (err) {
+      } catch (err: any) {
         console.error('Erro ao buscar dados do cliente no Sankhya:', err);
+        setCliente(null);
+        setClientesEncontrados([]);
+        setTitulos([]);
+        setTotalEmAberto(0);
+        setSelectedIds(new Set());
+        setDebugBusca({ erro: err?.message || 'Erro ao conectar ao servidor' });
       } finally {
         setLoading(false);
       }
