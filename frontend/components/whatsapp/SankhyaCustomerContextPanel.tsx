@@ -14,6 +14,7 @@ import { DanfeViewer } from '@/components/nfe/DanfeViewer';
 import { RenegociacaoModal } from '@/components/cobranca/RenegociacaoModal';
 import { WhatsAppTemplatesConfigModal } from '@/components/cobranca/WhatsAppTemplatesConfigModal';
 import { WhatsAppSkillDiagnosticModal } from '@/components/whatsapp/WhatsAppSkillDiagnosticModal';
+import { useWhatsAppFilaFilterStore, FILTRO_TODOS_ID, FilaFilterRange } from '@/store/whatsappFilaFilterStore';
 import {
   Building2,
   Phone,
@@ -42,6 +43,9 @@ import {
   X,
   Users,
   CheckCircle,
+  Filter,
+  ChevronDown,
+  SlidersHorizontal,
 } from 'lucide-react';
 
 interface SankhyaCustomerContextPanelProps {
@@ -80,7 +84,6 @@ export function SankhyaCustomerContextPanel({
 }: SankhyaCustomerContextPanelProps) {
   // Controle de Abas: 'fila' (Principal) vs 'atendimento' (Detalhes Unificados)
   const [activeTab, setActiveTab] = useState<'fila' | 'atendimento'>('fila');
-  const [statusFilter, setStatusFilter] = useState<'todos' | 'atraso' | 'criticos'>('todos');
 
   const [loading, setLoading] = useState(false);
   const [cliente, setCliente] = useState<ClienteSankhya | null>(null);
@@ -93,8 +96,12 @@ export function SankhyaCustomerContextPanel({
   const { activePartnerId, openWhatsAppWithContact } = useWhatsAppStore();
   const { data: atendimentosData, isLoading: loadingFila, refetch: refetchFila } = useAtendimentosHoje();
 
+  // Filtros Configuráveis da Fila de Cobrança
+  const { filtros, filtroAtivoId, setFiltroAtivoId } = useWhatsAppFilaFilterStore();
+
   const [filaBusca, setFilaBusca] = useState('');
   const [configModalOpen, setConfigModalOpen] = useState(false);
+  const [configModalTab, setConfigModalTab] = useState<'templates' | 'filtros'>('templates');
   const [diagnosticModalOpen, setDiagnosticModalOpen] = useState(false);
   const [mensagemEditada, setMensagemEditada] = useState('');
   const [sending, setSending] = useState(false);
@@ -108,20 +115,52 @@ export function SankhyaCustomerContextPanel({
   // Lista da Fila de Cobrança bruta
   const rawFilaItems = useMemo(() => atendimentosData?.items || [], [atendimentosData]);
 
-  // Contagens para os Filtros Rápidos
+  // Contagem Total
   const countTodos = rawFilaItems.length;
-  const countAtraso = useMemo(() => rawFilaItems.filter((i) => i.diasAtrasoMax && i.diasAtrasoMax > 0).length, [rawFilaItems]);
-  const countCriticos = useMemo(() => rawFilaItems.filter((i) => i.diasAtrasoMax && i.diasAtrasoMax >= 30).length, [rawFilaItems]);
 
-  // Lista da Fila de Cobrança filtrada por status e termo de busca
+  // Mapa de Contagens Dinâmicas para Cada Filtro Configurado
+  const countsByFiltro = useMemo(() => {
+    const map: Record<string, number> = {};
+    for (const f of filtros) {
+      if (f.id === FILTRO_TODOS_ID) {
+        map[f.id] = rawFilaItems.length;
+      } else {
+        const count = rawFilaItems.filter((i) => {
+          const dias = i.diasAtrasoMax || 0;
+          if (f.diaFinal === null) {
+            return dias >= f.diaInicial;
+          }
+          return dias >= f.diaInicial && dias <= f.diaFinal;
+        }).length;
+        map[f.id] = count;
+      }
+    }
+    return map;
+  }, [filtros, rawFilaItems]);
+
+  // Filtro Atual Selecionado
+  const filtroAtual = useMemo(() => {
+    return filtros.find((f) => f.id === filtroAtivoId) || filtros[0] || {
+      id: FILTRO_TODOS_ID,
+      label: 'Todos os Clientes',
+      diaInicial: 0,
+      diaFinal: null,
+    };
+  }, [filtros, filtroAtivoId]);
+
+  // Lista da Fila de Cobrança filtrada por faixa de atraso configurada e busca por texto
   const filaAtendimento = useMemo(() => {
     let items = rawFilaItems;
 
-    // Filtro rápido de status
-    if (statusFilter === 'atraso') {
-      items = items.filter((i) => i.diasAtrasoMax && i.diasAtrasoMax > 0);
-    } else if (statusFilter === 'criticos') {
-      items = items.filter((i) => i.diasAtrasoMax && i.diasAtrasoMax >= 30);
+    // 1. Filtragem por Intervalo de Dias de Atraso Configurado
+    if (filtroAtual && filtroAtual.id !== FILTRO_TODOS_ID) {
+      items = items.filter((i) => {
+        const dias = i.diasAtrasoMax || 0;
+        if (filtroAtual.diaFinal === null) {
+          return dias >= filtroAtual.diaInicial;
+        }
+        return dias >= filtroAtual.diaInicial && dias <= filtroAtual.diaFinal;
+      });
     }
 
     // Helper de normalização que remove +55 ou 55 inicial e pontuação
@@ -133,7 +172,7 @@ export function SankhyaCustomerContextPanel({
       return d;
     };
 
-    // Filtro por texto robusto e normalizado (compatível com dígitos limpos, sem +55 e texto formatado)
+    // 2. Filtro por texto robusto e normalizado (compatível com dígitos limpos, sem +55 e texto formatado)
     if (!filaBusca.trim()) return items;
     const term = filaBusca.toLowerCase().trim();
     const termDigits = cleanPhoneDigits(term);
@@ -157,7 +196,7 @@ export function SankhyaCustomerContextPanel({
 
       return nomeMatch || codMatch || telMatch || cnpjMatch;
     });
-  }, [rawFilaItems, statusFilter, filaBusca]);
+  }, [rawFilaItems, filtroAtual, filaBusca]);
 
   // Referência do último contato que provocou troca de aba para evitar re-gatilho automático
   const lastSwitchedContactRef = useRef<string | null>(null);
@@ -489,43 +528,58 @@ export function SankhyaCustomerContextPanel({
               )}
             </div>
 
-            {/* Pílulas de Filtro Rápido */}
-            <div className="flex items-center gap-1.5 text-[11px] font-bold">
-              <button
-                type="button"
-                onClick={() => setStatusFilter('todos')}
-                className={`px-2 py-1 rounded-md border transition-all ${
-                  statusFilter === 'todos'
-                    ? 'bg-emerald-600 text-white border-emerald-600 shadow-2xs'
-                    : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-100'
-                }`}
-              >
-                Todos ({countTodos})
-              </button>
+            {/* Seletor Dropdown de Faixas de Atraso Configuráveis */}
+            <div className="space-y-1.5">
+              <div className="flex items-center gap-1.5">
+                <div className="relative flex-1">
+                  <Filter className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-emerald-600 pointer-events-none z-10" />
+                  <select
+                    id="filtro-atraso-dropdown"
+                    value={filtroAtivoId}
+                    onChange={(e) => setFiltroAtivoId(e.target.value)}
+                    className="w-full rounded-lg border border-gray-300 pl-8 pr-7 py-1.5 text-xs font-bold text-gray-800 bg-white hover:border-emerald-500 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 focus:outline-none shadow-2xs cursor-pointer appearance-none"
+                  >
+                    {filtros.map((f) => {
+                      const count = countsByFiltro[f.id] ?? 0;
+                      return (
+                        <option key={f.id} value={f.id}>
+                          {f.label} ({count})
+                        </option>
+                      );
+                    })}
+                  </select>
+                  <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400 pointer-events-none" />
+                </div>
 
-              <button
-                type="button"
-                onClick={() => setStatusFilter('atraso')}
-                className={`px-2 py-1 rounded-md border transition-all ${
-                  statusFilter === 'atraso'
-                    ? 'bg-amber-600 text-white border-amber-600 shadow-2xs'
-                    : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-100'
-                }`}
-              >
-                Com Atraso ({countAtraso})
-              </button>
+                {/* Botão Atalho para Abrir Configuração de Filtros */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setConfigModalTab('filtros');
+                    setConfigModalOpen(true);
+                  }}
+                  className="p-1.5 rounded-lg border border-gray-200 bg-gray-50 text-gray-600 hover:text-emerald-700 hover:bg-emerald-50 hover:border-emerald-300 transition-colors shrink-0 shadow-2xs"
+                  title="Configurar e criar novos filtros de dias de atraso"
+                >
+                  <SlidersHorizontal className="h-4 w-4" />
+                </button>
+              </div>
 
-              <button
-                type="button"
-                onClick={() => setStatusFilter('criticos')}
-                className={`px-2 py-1 rounded-md border transition-all ${
-                  statusFilter === 'criticos'
-                    ? 'bg-rose-600 text-white border-rose-600 shadow-2xs'
-                    : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-100'
-                }`}
-              >
-                &gt;30 Dias ({countCriticos})
-              </button>
+              {/* Informação / Badge da Faixa Selecionada */}
+              <div className="flex items-center justify-between text-[10px] text-gray-500 px-0.5">
+                <span className="truncate">
+                  {filtroAtual.id === FILTRO_TODOS_ID
+                    ? 'Exibindo todos os clientes pendentes'
+                    : filtroAtual.diaFinal === null
+                    ? `Filtro: > ${filtroAtual.diaInicial} dias de atraso`
+                    : filtroAtual.diaInicial === filtroAtual.diaFinal
+                    ? `Filtro: ${filtroAtual.diaInicial} dias de atraso`
+                    : `Filtro: ${filtroAtual.diaInicial} a ${filtroAtual.diaFinal} dias de atraso`}
+                </span>
+                <span className="font-bold text-emerald-800 shrink-0 font-mono bg-emerald-50 px-1.5 py-0.2 rounded border border-emerald-200">
+                  {filaAtendimento.length} {filaAtendimento.length === 1 ? 'cliente' : 'clientes'}
+                </span>
+              </div>
             </div>
           </div>
 
@@ -994,6 +1048,7 @@ export function SankhyaCustomerContextPanel({
       {configModalOpen && (
         <WhatsAppTemplatesConfigModal
           open={configModalOpen}
+          initialTab={configModalTab}
           onClose={() => setConfigModalOpen(false)}
         />
       )}
